@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocalStorage, todayKey } from '../hooks/useLocalStorage.js';
 import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab } from '../chrome.jsx';
 import { IconHeart, IconCheck, IconMic, IconCamera, IconPlus, IconRecovery, IconSleep, IconWater, MOOD_ICONS, MOOD_LABELS } from '../icons.jsx';
 import { HABITS, PROMPTS } from '../data/habits.js';

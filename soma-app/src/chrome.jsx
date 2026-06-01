@@ -313,6 +313,55 @@ export function ScreenFrame({ t, children, accentColor }) {
   );
 }
 
+// ─── Bottom tab bar ───────────────────────────────────────────────
+export function BottomTabBar({ t, screen, onNav, onPlus }) {
+  const tabs = [
+    { id:'home',    Icon:IconHome,    label:'Home' },
+    { id:'train',   Icon:IconTrain,   label:'Entrena' },
+    null,
+    { id:'journal', Icon:IconJournal, label:'Diario' },
+    { id:'me',      Icon:IconProfile, label:'Yo' },
+  ];
+
+  return (
+    <div style={{
+      display:'flex', alignItems:'center',
+      height:56, flexShrink:0,
+      paddingBottom:'env(safe-area-inset-bottom)',
+      background:t.bg,
+      borderTop:`1px solid ${t.divider}`,
+    }}>
+      {tabs.map((tab, i) => {
+        if (!tab) return (
+          <div key="fab" style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center' }}>
+            <button onClick={onPlus} style={{
+              width:46, height:46, borderRadius:'50%',
+              background:t.accent, border:'none', cursor:'pointer',
+              color:t.onAccent, display:'flex', alignItems:'center',
+              justifyContent:'center', transform:'translateY(-8px)',
+              boxShadow:`0 4px 16px ${t.accent}66`,
+            }}>
+              <IconPlus size={22} stroke={2.4}/>
+            </button>
+          </div>
+        );
+        const active = screen === tab.id;
+        return (
+          <button key={tab.id} onClick={() => onNav(tab.id)}
+            style={{ flex:1, height:'100%', border:'none', background:'transparent',
+              cursor:'pointer', display:'flex', flexDirection:'column',
+              alignItems:'center', justifyContent:'center', gap:3,
+              color: active ? t.accent : t.fgFaint }}>
+            <tab.Icon size={22} stroke={active ? 2.2 : 1.6}/>
+            <span style={{ fontFamily:t.fonts.mono, fontSize:8, fontWeight:700,
+              letterSpacing:'0.1em', textTransform:'uppercase' }}>{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function PillarTag({ t, pillar, children }) {
   const map = {
     train:   { bg:t.pillar.train,   fg:'#0A0908' },
