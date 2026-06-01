@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SOMA — Design Rules v0.6</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0908;
+    --surface: #15130F;
+    --surface2: #211D17;
+    --fg: #F4F1EC;
+    --muted: #9A938A;
+    --faint: #6B655B;
+    --border: #2A2620;
+    --primary: hsl(72 78% 60%);
+    --secondary: hsl(18 100% 58%);
+    --tertiary: hsl(215 100% 68%);
+    --primary-soft: hsl(72 36% 66%);
+    --secondary-soft: hsl(18 58% 64%);
+    --tertiary-soft: hsl(215 58% 74%);
+    --ok: #7BD89A;
+    --mid: #F5C84B;
+    --low: #EF6B5C;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+    font-family: 'DM Sans', system-ui, sans-serif; line-height: 1.5; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 60px 32px 120px; }
+  h1 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 56px;
+    letter-spacing: -0.04em; line-height: 1; margin: 0 0 8px; }
+  h2 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 30px;
+    letter-spacing: -0.035em; line-height: 1.05; margin: 60px 0 16px; }
+  h3 { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px;
+    letter-spacing: -0.02em; margin: 24px 0 6px; }
+  h4 { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px;
+    letter-spacing: -0.015em; margin: 16px 0 4px; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--faint); }
+  p { color: var(--fg); font-size: 15px; max-width: 64ch; margin: 8px 0; }
+  p.muted { color: var(--muted); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+  .grid { display: grid; gap: 12px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .card { background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px; }
+  .swatch { aspect-ratio: 4/3; border-radius: 12px;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 12px; }
+  .swatch .name { font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 16px; letter-spacing: -0.02em; }
+  .swatch .hex { font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    font-weight: 700; letter-spacing: 0.1em; opacity: 0.7; margin-top: 2px; }
+  .pill { display: inline-block; padding: 4px 9px; border-radius: 999px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase; }
+  code { font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    background: var(--surface2); padding: 2px 6px; border-radius: 4px;
+    color: var(--primary); }
+  ul { padding-left: 22px; color: var(--fg); font-size: 14.5px; }
+  ul li { margin: 4px 0; }
+  ul li::marker { color: var(--faint); }
+  .rule { display: grid; grid-template-columns: 90px 1fr;
+    gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .rule:last-child { border-bottom: none; }
+  .rule .num { font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: 36px; letter-spacing: -0.04em; color: var(--primary); line-height: 1; }
+  .level-row { display: flex; align-items: center; gap: 14px;
+    padding: 10px 14px; border-radius: 10px; background: var(--surface);
+    border: 1px solid var(--border); }
+  .level-row + .level-row { margin-top: 6px; }
+  .top-stripe { display: flex; gap: 4px; margin-bottom: 40px; }
+  .top-stripe > div { flex: 1; height: 6px; border-radius: 3px; }
+  a { color: var(--primary); }
+  .phase {
+    margin-top: 18px; padding: 14px 16px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--border);
+  }
+  .phase-title { display: flex; justify-content: space-between;
+    align-items: baseline; margin-bottom: 8px; }
+  .phase-title span { font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 17px; letter-spacing: -0.02em; }
+  .phase-range { font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    font-weight: 700; letter-spacing: 0.14em; color: var(--faint);
+    text-transform: uppercase; }
+  .ax { display: grid; grid-template-columns: auto 1fr auto; gap: 12px;
+    align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
+  .ax:first-of-type { border-top: none; }
+  .ax-id { font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    font-weight: 700; letter-spacing: 0.14em; color: var(--primary); }
+  .ax-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px;
+    letter-spacing: -0.02em; }
+  .ax-meta { font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--muted); letter-spacing: 0.1em; }
+  .ax-sum { color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+  .flag {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 8px; border-radius: 999px; font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .flag-dot { width: 7px; height: 7px; border-radius: 50%; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top-stripe">
+    <div style="background: var(--primary)"></div>
+    <div style="background: var(--secondary)"></div>
+    <div style="background: var(--tertiary)"></div>
+    <div style="background: var(--fg)"></div>
+  </div>
+
+  <div class="mono">SOMA · Sistema visual · v0.6</div>
+  <h1>Design<br/>Rules</h1>
+  <p class="muted">El contrato visual para integrar al app. Si algo aquí cambia,
+  todo lo demás se reescribe en cadena. Esta versión incorpora el sistema oficial
+  del Holistic Level Guide y los flows estilo BTWB.</p>
+
+  <!-- ── BLOQUEADO ─────────────────────────────────────────── -->
+  <h2>1 · Locked</h2>
+  <div class="rule">
+    <div class="num">01</div>
+    <div>
+      <h3>Isotype: F5 · Onda</h3>
+      <p>Óvalo abierto + onda sinusoidal continua. La onda dentro del óvalo es
+      la firma. Aparece como decoración, patrón de fondo, dentro de iconografía
+      de nivel, y como sello en notificaciones. El óvalo es <i>literalmente</i> la
+      O de SOMA cuando aparece como wordmark: <code>S [○] M A</code>.</p>
+    </div>
+  </div>
+  <div class="rule">
+    <div class="num">02</div>
+    <div>
+      <h3>Type: Syne 800 · DM Sans · JetBrains Mono</h3>
+      <p>Display: Syne 800 con tracking <code>-0.035em</code> a <code>-0.045em</code>.
+      Mono: JetBrains Mono 700 para etiquetas, métricas, fechas, tags.
+      Body: DM Sans 400/600.</p>
+    </div>
+  </div>
+  <div class="rule">
+    <div class="num">03</div>
+    <div>
+      <h3>Semaphore bloqueado a resultados</h3>
+      <p>Verde <code>#7BD89A</code> · Amarillo <code>#F5C84B</code> · Rojo <code>#EF6B5C</code>.
+      Se usan SOLO en resultados — Confidence Rating, Imbalance Penalty,
+      semana cumplida, PR mejorado. Nunca como color de marca.</p>
+    </div>
+  </div>
+
+  <!-- ── COLOR ────────────────────────────────────────────── -->
+  <h2>2 · Color</h2>
+  <p>La marca tiene <b>UNA paleta</b> de 3 colores anchor — Lime, Coral, Blue.
+  No hay paletas diferentes por tema. En su lugar, el usuario elige una de
+  <b>3 intensidades</b> que aplican el mismo set de hues a distinta saturación.</p>
+
+  <h3>Brand anchors</h3>
+  <div class="grid g3">
+    <div class="swatch" style="background: var(--primary); color: #0A0908">
+      <div class="name">Lime · Primary</div>
+      <div class="hex">hsl(72 78% 60%)</div>
+    </div>
+    <div class="swatch" style="background: var(--secondary); color: #0A0908">
+      <div class="name">Coral · Secondary</div>
+      <div class="hex">hsl(18 100% 58%)</div>
+    </div>
+    <div class="swatch" style="background: var(--tertiary); color: #0A0908">
+      <div class="name">Blue · Tertiary</div>
+      <div class="hex">hsl(215 100% 68%)</div>
+    </div>
+  </div>
+
+  <h3>3 intensidades del mismo set</h3>
+  <div class="grid g3" style="margin-top: 8px">
+    <div class="card">
+      <div class="mono" style="color: var(--primary)">VIVID</div>
+      <div style="display: flex; gap: 3px; margin: 8px 0">
+        <div style="flex: 1; height: 24px; background: var(--primary); border-radius: 4px 0 0 4px"></div>
+        <div style="flex: 1; height: 24px; background: var(--secondary)"></div>
+        <div style="flex: 1; height: 24px; background: var(--tertiary); border-radius: 0 4px 4px 0"></div>
+      </div>
+      <p style="font-size: 13px; margin: 6px 0 0">Máxima intensidad.
+      Default del app. Para entrenos, performance, energía.</p>
+    </div>
+    <div class="card">
+      <div class="mono" style="color: var(--primary-soft)">CALM</div>
+      <div style="display: flex; gap: 3px; margin: 8px 0">
+        <div style="flex: 1; height: 24px; background: var(--primary-soft); border-radius: 4px 0 0 4px"></div>
+        <div style="flex: 1; height: 24px; background: var(--secondary-soft)"></div>
+        <div style="flex: 1; height: 24px; background: var(--tertiary-soft); border-radius: 0 4px 4px 0"></div>
+      </div>
+      <p style="font-size: 13px; margin: 6px 0 0">Mismos colores, saturación
+      reducida 42% y lightness +6%. Para recuperación, mind, bitácora.</p>
+    </div>
+    <div class="card">
+      <div class="mono">MONO</div>
+      <div style="display: flex; gap: 3px; margin: 8px 0">
+        <div style="flex: 1; height: 24px; background: var(--fg); border-radius: 4px 0 0 4px"></div>
+        <div style="flex: 1; height: 24px; background: var(--muted)"></div>
+        <div style="flex: 1; height: 24px; background: var(--faint); border-radius: 0 4px 4px 0"></div>
+      </div>
+      <p style="font-size: 13px; margin: 6px 0 0">Saturación 0. La marca es
+      pura tipografía y forma. Para enfoque máximo.</p>
+    </div>
+  </div>
+
+  <h3>Asignación por pilar</h3>
+  <ul>
+    <li><b>Entrena</b> usa <span class="pill" style="background: var(--primary); color: #0A0908">LIME</span> — actividad central.</li>
+    <li><b>Come</b> usa <span class="pill" style="background: var(--secondary); color: #0A0908">CORAL</span> — cálido, nutricional.</li>
+    <li><b>Records</b> usa <span class="pill" style="background: var(--tertiary); color: #0A0908">BLUE</span> — analítico, dato.</li>
+    <li><b>Bitácora · Yo</b> usa <span class="pill" style="background: var(--fg); color: var(--bg)">INK</span> — mono, introspectivo.</li>
+  </ul>
+
+  <h3>Reglas duras</h3>
+  <ul>
+    <li>Texto sobre primario/secundario es siempre <code>#0A0908</code>, nunca blanco.</li>
+    <li>Un fondo de tarjeta NUNCA es color saturado salvo el hero del pilar.</li>
+    <li>Los 3 brand colors nunca aparecen juntos en proporciones iguales — siempre hay un dominante.</li>
+    <li>Cambiar de Vivid → Calm NO cambia los hues — solo la saturación.</li>
+  </ul>
+
+  <!-- ── SOMA LEVEL ──────────────────────────────────────── -->
+  <h2>3 · SOMA Level</h2>
+  <p>Sistema holístico de 12 niveles. Reemplaza el Fitness Level de BTWB
+  manteniendo la idea original del usuario.</p>
+
+  <h3>Phases — 4 grupos de 3 niveles</h3>
+
+  <div class="phase">
+    <div class="phase-title">
+      <span>The Foundation</span>
+      <span class="phase-range">L1 — L3 · Sickness → Baseline</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L01</span>
+      <div><div class="ax-name">The Spark</div><div class="ax-sum">You have ignited your journey.</div></div>
+      <span class="ax-meta">START LOGGING</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L02</span>
+      <div><div class="ax-name">The Iron Novice</div><div class="ax-sum">Establishing a routine.</div></div>
+      <span class="ax-meta">CONSISTENCY</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L03</span>
+      <div><div class="ax-name">The Consistent Crusader</div><div class="ax-sum">Out of the sickness zone.</div></div>
+      <span class="ax-meta">SLEEP + NUT</span>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-title">
+      <span>The Wellness Zone</span>
+      <span class="phase-range">L4 — L6 · General Physical Prep</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L04</span>
+      <div><div class="ax-name">The Wellness Ranger</div><div class="ax-sum">Lifestyle habits normalizing.</div></div>
+      <span class="ax-meta">NO CHERRY-PICK</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L05</span>
+      <div><div class="ax-name">The Functional Fighter</div><div class="ax-sum">Solid mechanics + consistency.</div></div>
+      <span class="ax-meta">ADD INTENSITY</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L06</span>
+      <div><div class="ax-name">The Balanced Beast</div><div class="ax-sum">Officially above average.</div></div>
+      <span class="ax-meta">FIX RED FLAGS</span>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-title">
+      <span>The Fit Zone</span>
+      <span class="phase-range">L7 — L9 · Advanced Athleticism</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L07</span>
+      <div><div class="ax-name">The SOMA Spartan</div><div class="ax-sum">Highly capable athlete.</div></div>
+      <span class="ax-meta">PERFORM RX</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L08</span>
+      <div><div class="ax-name">The Relentless Savage</div><div class="ax-sum">Vast work capacity.</div></div>
+      <span class="ax-meta">PRECISE MACROS</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L09</span>
+      <div><div class="ax-name">The Elite Operator</div><div class="ax-sum">Elite efficiency.</div></div>
+      <span class="ax-meta">COMPLEX SKILLS</span>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-title">
+      <span>The Pinnacle</span>
+      <span class="phase-range">L10 — L12 · Top 10% Globally</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L10</span>
+      <div><div class="ax-name">The Juggernaut</div><div class="ax-sum">Top decile of performance.</div></div>
+      <span class="ax-meta">RECOVERY</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L11</span>
+      <div><div class="ax-name">The Zenith</div><div class="ax-sum">Master of the holistic lifestyle.</div></div>
+      <span class="ax-meta">LEAD · COACH</span>
+    </div>
+    <div class="ax">
+      <span class="ax-id">L12</span>
+      <div><div class="ax-name">The SOMA Sovereign</div><div class="ax-sum">The absolute pinnacle.</div></div>
+      <span class="ax-meta">STAY HERE</span>
+    </div>
+  </div>
+
+  <h3>Visual progression of the level icons</h3>
+  <p>Cada nivel es una evolución del isotipo F5. La progresión es
+  intencional — debe leerse linealmente sin saltos.</p>
+  <ul>
+    <li><b>L1-3 Foundation</b>: del punto al guion. Un dot → tres dots → línea dasheada.</li>
+    <li><b>L4-6 Wellness</b>: una sola onda continua, creciendo en amplitud y frecuencia.</li>
+    <li><b>L7-9 Fit</b>: emerge una <i>segunda</i> línea — dos ondas PARALELAS, cada vez más densas.</li>
+    <li><b>L10-12 Pinnacle</b>: las dos ondas se vuelven INDEPENDIENTES y se CRUZAN. L11 añade una tercera. L12 tiene la chispa.</li>
+  </ul>
+
+  <h3>The 5 Core Rules</h3>
+  <ul>
+    <li><b>01 Data Seed</b> — log 2 valid results en cada una de las 8 fitness categories para desbloquear el level.</li>
+    <li><b>02 365-Day Window</b> — los PRs y habits cuentan solo si pasaron en los últimos 365 días. Si dejas de loggear, el nivel decae.</li>
+    <li><b>03 Confidence Rating</b> — Red / Yellow / Green. Solo puedes subir de nivel oficialmente con Green.</li>
+    <li><b>04 Imbalance Penalty</b> — un Red Imbalance flag te capea por debajo de L7 (Spartan). Hay que arreglar la debilidad para pasar.</li>
+    <li><b>05 Mechanics → Consistency → Intensity</b> — workouts heavily scaled limitan tu percentile máximo. Para llegar al Pinnacle hay que hacer Rx.</li>
+  </ul>
+
+  <h3>The 4 Pillars of Progression</h3>
+  <ul>
+    <li><b>Fitness & Output</b> — no cherry-pickear. Ataca las 8 fitness dimensions.</li>
+    <li><b>Nutrition & Fueling</b> — macros, calorías, hidratación, cross-ref con performance.</li>
+    <li><b>Recovery, Sleep & Mobility</b> — 8-10 hrs sueño, RHR, HRV, movilidad diaria.</li>
+    <li><b>Mental Health & Habits</b> — one-tap streaks. Resilience tracking. Feel-Good logs.</li>
+  </ul>
+
+  <!-- ── BITÁCORA ────────────────────────────────────────── -->
+  <h2>4 · Bitácora · Holistic Habits + Mind</h2>
+  <p>La Bitácora es el hub mind/habits/journal. Combina mood, habits one-tap,
+  dynamic prompts (Stoic / Somatic / Polarity / Dopamine), body signals
+  (RHR · HRV · grip · sleep) y captura raw (voice · photo · text).</p>
+
+  <h3>SOMA Holistic Habits — 4 dominios</h3>
+  <ul>
+    <li><b>Body</b> — mobility, cold plunge, sauna, grip check, walk</li>
+    <li><b>Mind</b> — callus, stoic, meditate, NSDR, no-phone-first-hour, gratitude, deep work</li>
+    <li><b>Fuel</b> — hydration, protein, no alcohol, greens, sunlight, fast</li>
+    <li><b>Social</b> — quality time, boundary, service</li>
+  </ul>
+  <p class="muted">El usuario customiza cuáles tracking. Se muestran como
+  toggles one-tap en la pantalla de Bitácora. El progreso del día se ve
+  como una barra encima de los toggles.</p>
+
+  <h3>Dynamic prompts — máx 3 por día</h3>
+  <p>Para evitar questionnaire fatigue, solo 3 preguntas al día. El AI
+  selecciona basado en contexto (energía baja → somatic, conflicto reciente →
+  stoic, etc). Categorías: Stoic · Somatic · Wound Pattern · Dopamine ·
+  Polarity · Feel Good · Body · Energy.</p>
+
+  <!-- ── NAVEGACIÓN ──────────────────────────────────────── -->
+  <h2>5 · Navegación · Tab Bar con +</h2>
+  <p>5 slots fijos en la tab bar — el slot central es un botón circular
+  flotante (+) que abre un Action Sheet con todo lo demás.</p>
+
+  <div class="grid g4">
+    <div class="card"><div class="mono">SLOT 0</div><h4>Home</h4><p class="muted" style="font-size: 12px">Dashboard</p></div>
+    <div class="card"><div class="mono">SLOT 1</div><h4>Entrena</h4><p class="muted" style="font-size: 12px">Training</p></div>
+    <div class="card" style="background: var(--primary); color: #0A0908"><div class="mono" style="color: rgba(0,0,0,0.6)">SLOT 2</div><h4 style="color: #0A0908">+</h4><p style="font-size: 12px; color: rgba(0,0,0,0.7)">Action Sheet</p></div>
+    <div class="card"><div class="mono">SLOT 3</div><h4>Come</h4><p class="muted" style="font-size: 12px">Nutrition</p></div>
+  </div>
+  <div class="grid" style="grid-template-columns: 1fr; margin-top: 8px">
+    <div class="card"><div class="mono">SLOT 4</div><h4>Yo · Profile</h4><p class="muted" style="font-size: 12px">Inventories, settings</p></div>
+  </div>
+
+  <h3>Behind the + sheet</h3>
+  <ul>
+    <li><b>Quick log row</b>: Workout · Meal · Mood · Water · Weight (5 íconos rápidos)</li>
+    <li><b>Navigate</b>: Records & Analyze · SOMA Level · Bitácora</li>
+    <li><b>Log</b>: New movement · Edit movement · Search movements</li>
+    <li><b>Inventory</b>: Gym equipment · Machines · Kitchen tools · Supplements</li>
+  </ul>
+
+  <!-- ── BTWB FLOWS ──────────────────────────────────────── -->
+  <h2>6 · BTWB-style flows (reimaginados en SOMA)</h2>
+  <p>Los 3 flows core de captura de entrenos, rebuilt en SOMA's visual
+  language — no usan el indigo stock de BTWB, ni los círculos pastel.</p>
+
+  <h3>Multiple Movements Templates</h3>
+  <p>Selector segmentado "scored by" arriba (Time / Completion / Rounds /
+  Reps). Debajo, lista de templates con dot de color del pilar (no pastel)
+  + título Syne 700 + descripción.</p>
+
+  <h3>Search Movements</h3>
+  <p>Bottom sheet con input de búsqueda + grid de 2 columnas con nombres
+  de movimientos. Soporta queries: <code>Snatch</code> retorna 30+ variantes,
+  <code>Row</code> retorna 30+, etc.</p>
+
+  <h3>Edit Movement</h3>
+  <p>5 toggles para Reps · Weight · Distance · Height · Time. Cada toggle
+  tiene su color por pilar — Reps=primary, Weight=tertiary, etc. — para
+  que el form herede la identidad de SOMA. Botón UPDATE grande al pie.</p>
+
+  <!-- ── HANDOFF ─────────────────────────────────────────── -->
+  <h2>7 · Handoff técnico</h2>
+  <p>Todo vive en archivos JSX listos para integrar al codebase:</p>
+  <ul>
+    <li><code>soma-tokens.jsx</code> — colors (3 intensidades) + neutrales + tipografía</li>
+    <li><code>soma-icons.jsx</code> — iconografía (nav, captura, macros, mood, status)</li>
+    <li><code>soma-levels.jsx</code> — 12 levels + sus SVG marks + 5 rules + 4 pillars</li>
+    <li><code>soma-habits.jsx</code> — Holistic Habits library + dynamic prompts</li>
+    <li><code>soma-chrome.jsx</code> — status bar · tab bar con + central · add sheet · headers</li>
+    <li><code>soma-screen-eat.jsx</code> — Come (food imagery + macros)</li>
+    <li><code>soma-screen-level.jsx</code> — SOMA Level (hero, rules, pillars, roadmap)</li>
+    <li><code>soma-screen-journal.jsx</code> — Bitácora (mood, habits, prompts, body signals)</li>
+    <li><code>soma-screen-movements.jsx</code> — BTWB flows (templates, search, edit)</li>
+    <li><code>soma-screens.jsx</code> — Home · Entrena · Records · Yo</li>
+    <li><code>logo-marks-final.jsx</code> — F5 + family</li>
+    <li><code>logo-lockups.jsx</code> — wordmark con O = onda</li>
+  </ul>
+
+  <h3>Llamado típico</h3>
+  <p><code>const t = tokens({ mode: 'dark', intensityId: 'vivid' });</code></p>
+  <p>Y dentro: <code>t.accent</code> (primario) · <code>t.secondary</code> · <code>t.tertiary</code> ·
+  <code>t.pillar.train</code> · <code>t.pillar.eat</code> · <code>t.pillar.records</code> ·
+  <code>t.fonts.display</code> · <code>t.semantic.ok</code>, etc.</p>
+
+  <p class="muted">Compatibilidad: el viejo <code>accentId</code> sigue funcionando
+  (lime/coral → vivid · indigo → calm · bone → mono).</p>
+
+  <hr/>
+  <div class="mono" style="text-align: center">
+    SOMA · body · mind · time · v0.6
+  </div>
+</div>
+</body>
+</html>

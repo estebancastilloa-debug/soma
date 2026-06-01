@@ -1,0 +1,105 @@
+/* SOMA — Design tokens
+ * Drop this into src/styles/ and @import from your root stylesheet.
+ *
+ * Usage on <html>:
+ *   <html data-theme="dark" data-accent="lime">
+ *
+ * Both attributes are user-selectable. Persist them in localStorage and
+ * re-apply on mount.
+ */
+
+:root {
+  /* ─── Fonts ─── */
+  --soma-font-display: 'Syne', sans-serif;
+  --soma-font-body:    'DM Sans', system-ui, sans-serif;
+  --soma-font-mono:    'JetBrains Mono', ui-monospace, monospace;
+
+  /* ─── Semantic (results-only — never use as brand chrome) ─── */
+  --soma-ok:  #4ADE80;
+  --soma-mid: #F5C84B;
+  --soma-low: #EF5350;
+
+  /* ─── Radius scale ─── */
+  --soma-r-sm: 4px;
+  --soma-r-md: 12px;
+  --soma-r-lg: 14px;
+  --soma-r-xl: 18px;
+  --soma-r-pill: 999px;
+}
+
+/* ═══ NEUTRALS ═════════════════════════════════════════ */
+
+[data-theme="light"] {
+  --soma-bg:        #F6F5F2;
+  --soma-surface:   #FFFFFF;
+  --soma-surface-2: #ECEAE4;
+  --soma-fg:        #15120E;
+  --soma-fg-muted:  #5F5B53;
+  --soma-fg-faint:  #9A968F;
+  --soma-border:    #E3E0D9;
+  --soma-divider:   #ECE9E2;
+}
+
+[data-theme="dark"] {
+  --soma-bg:        #0A0908;
+  --soma-surface:   #15130F;
+  --soma-surface-2: #1F1C17;
+  --soma-fg:        #F4F1EC;
+  --soma-fg-muted:  #9A938A;
+  --soma-fg-faint:  #6B655B;
+  --soma-border:    #2A2620;
+  --soma-divider:   #1F1C17;
+}
+
+/* ═══ ACCENTS ══════════════════════════════════════════ */
+
+[data-accent="lime"] {
+  --soma-accent:    #C8E84A;
+  --soma-on-accent: #0A0908;
+}
+
+[data-accent="coral"] {
+  --soma-accent:    #FF6B2B;
+  --soma-on-accent: #0A0908;
+}
+
+[data-accent="indigo"] {
+  --soma-accent:    #5B5BD6;
+  --soma-on-accent: #FFFFFF;
+}
+
+/* "Mono" — no color accent; the brand is purely typographic.
+ * The accent literally IS the foreground neutral. Inverted automatically
+ * when mode swaps. */
+[data-accent="bone"] {
+  --soma-accent:    var(--soma-fg);
+  --soma-on-accent: var(--soma-bg);
+}
+
+/* ═══ DEFAULTS ═════════════════════════════════════════ */
+/* If no data-attrs are set, fall back to dark + lime. */
+
+:root:not([data-theme]) {
+  --soma-bg:        #0A0908;
+  --soma-surface:   #15130F;
+  --soma-surface-2: #1F1C17;
+  --soma-fg:        #F4F1EC;
+  --soma-fg-muted:  #9A938A;
+  --soma-fg-faint:  #6B655B;
+  --soma-border:    #2A2620;
+  --soma-divider:   #1F1C17;
+}
+
+:root:not([data-accent]) {
+  --soma-accent:    #C8E84A;
+  --soma-on-accent: #0A0908;
+}
+
+/* ═══ TYPE BASE ════════════════════════════════════════ */
+/* Optional — apply globally or scope to a wrapper. */
+
+html, body {
+  background: var(--soma-bg);
+  color: var(--soma-fg);
+  font-family: var(--soma-font-body);
+}

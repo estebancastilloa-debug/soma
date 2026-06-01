@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SOMA — Sistema de Íconos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+  body { font-family: 'DM Sans', system-ui, sans-serif; }
+  button { font-family: inherit; }
+  button:focus { outline: none; }
+  *::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="logo-marks-final.jsx"></script>
+<script type="text/babel" src="soma-tokens.jsx"></script>
+<script type="text/babel" src="soma-icons.jsx"></script>
+<script type="text/babel" src="soma-icons-ext.jsx"></script>
+
+<script type="text/babel">
+const { useState } = React;
+const { tokens } = window;
+
+// Each entry: [windowKey, label]. Icons render from window[key].
+const GROUPS = [
+  { title: 'Navegación · estructura', note: 'tab bar, drawer, jerarquía',
+    items: [
+      ['IconHome','home'],['IconTrain','entrena'],['IconEat','come'],
+      ['IconRecords','records'],['IconJournal','bitácora'],['IconProfile','perfil'],
+      ['IconBalance','nivel'],['IconChevronRight','chevron→'],['IconChevronLeft','←'],
+      ['IconChevronDown','▾'],['IconChevronUp','▴'],['IconClose','cerrar'],
+    ]},
+  { title: 'Acciones · utilidad', note: 'controles globales',
+    items: [
+      ['IconPlus','agregar'],['IconSearch','buscar'],['IconFilter','filtrar'],
+      ['IconEdit','editar'],['IconTrash','borrar'],['IconCheck','check'],
+      ['IconSettings','ajustes'],['IconBell','alertas'],['IconInfo','info'],
+      ['IconShare','compartir'],['IconExport','exportar'],['IconDownload','descargar'],
+      ['IconPlay','play'],['IconArrowUp','sube'],['IconArrowDown','baja'],
+      ['IconStar','destacar'],['IconTarget','meta'],['IconShield','resiliencia'],
+      ['IconLock','privado'],
+    ]},
+  { title: 'Captura', note: 'entrada rápida de data',
+    items: [
+      ['IconMic','voz'],['IconCamera','foto'],['IconTimer','tiempo'],
+      ['IconBolt','intensidad'],['IconCalendar','fecha'],['IconCalendarDays','agenda'],
+    ]},
+  { title: 'Entrena · movimiento', note: 'modalidades CrossFit',
+    items: [
+      ['IconDumbbellSmall','mancuerna'],['IconBarbell','barra'],['IconKettlebell','kettlebell'],
+      ['IconPullupBar','barra dom'],['IconBands','ligas'],['IconTRX','trx'],
+      ['IconRower','remo'],['IconBike','bike'],['IconJumpRope','cuerda'],
+      ['IconPlyoBox','box'],['IconBench','banca'],['IconCable','poleas'],
+      ['IconSandbag','sandbag'],['IconMedBall','med ball'],['IconParallettes','paralelas'],
+      ['IconBodyweight','peso corp'],['IconRings','anillos'],['IconRun','correr'],
+    ]},
+  { title: 'Records · logros', note: 'PRs y categorías',
+    items: [
+      ['IconTrophy','benchmark'],['IconMedal','medalla'],['IconGymnastics','gimnasia'],
+      ['IconFlame','racha'],['IconStreak','streak'],['IconRecords','progreso'],
+    ]},
+  { title: 'Analytics · data viz', note: 'auditoría e imbalances',
+    items: [
+      ['IconBarsStacked','barras'],['IconDonut','dona'],['IconRadar','radar'],
+      ['IconTrend','tendencia'],['IconBalance','balance'],
+    ]},
+  { title: 'Come · nutrición', note: 'macros, despensa, super',
+    items: [
+      ['IconProtein','proteína'],['IconCarbs','carbs'],['IconFat','grasa'],
+      ['IconSnack','snack'],['IconWater','agua'],['IconJar','despensa'],
+      ['IconCart','super'],['IconFridge','refri'],['IconFasting','ayuno'],
+    ]},
+  { title: 'Suplementos', items: [
+      ['IconCapsule','cápsula'],['IconScoop','scoop'],['IconFish','omega-3'],
+      ['IconSun','vitamina d'],['IconBolt','creatina'],
+    ]},
+  { title: 'Salud · biometría', note: 'composición + vitales + sangre',
+    items: [
+      ['IconScale','peso'],['IconRuler','altura'],['IconBodyComp','composición'],
+      ['IconPulse','rhr'],['IconHeartRate','hrv'],['IconBloodPressure','presión'],
+      ['IconThermometer','temp'],['IconBloodDrop','sangre'],['IconGlucose','glucosa'],
+      ['IconBone','densidad'],['IconRecovery','recovery'],['IconSleep','sueño'],
+    ]},
+  { title: 'Viajes', note: 'travel mode',
+    items: [
+      ['IconPlane','vuelo'],['IconSuitcase','maleta'],['IconMapPin','destino'],
+      ['IconHotel','hotel'],['IconBoxGym','box local'],['IconCompass','brújula'],
+    ]},
+  { title: 'Mente · psicología', note: 'biotipos, heridas, locus',
+    items: [
+      ['IconFire','colérico'],['IconSun','sanguíneo'],['IconMoon','melancólico'],
+      ['IconWaveEl','flemático'],['IconBrain','cognitivo'],['IconPolarity','energético'],
+      ['IconBodyComp','somático'],['IconWound','herida'],['IconLocus','locus'],
+      ['IconHeart','gratitud'],
+    ]},
+  { title: 'Hábitos · biohacking', items: [
+      ['IconSnowflake','cold plunge'],['IconSauna','sauna'],['IconFasting','ayuno'],
+      ['IconLotus','nsdr'],['IconFloat','flotación'],['IconPhoneOff','sin pantallas'],
+      ['IconFocus','deep work'],['IconMountain','callus mind'],['IconStretch','movilidad'],
+    ]},
+  { title: 'Vices · tracking negativo', note: 'el círculo+slash marca "sin"',
+    items: [
+      ['IconGlass','alcohol'],['IconCigarette','fumar'],['IconLeaf','weed'],
+      ['IconBurger','chatarra'],['IconSugar','azúcar'],['IconProhibit','sin · slash'],
+    ]},
+  { title: 'Integraciones · sync', note: 'wearables y export',
+    items: [
+      ['IconLink','conectar'],['IconSync','sincronizar'],['IconDevice','wearable'],
+    ]},
+  { title: 'Mood · escala 1–5', note: 'caras de ánimo',
+    items: [
+      ['MoodTired','1 · mal'],['MoodNeutral','2'],['MoodOk','3'],
+      ['MoodGood','4'],['MoodGreat','5 · pleno'],
+    ]},
+];
+
+function IconCard({ name, label, t }) {
+  const Cmp = window[name];
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: 10, padding: '18px 8px 14px',
+      background: t.surface, borderRadius: 14,
+      border: `1px solid ${t.divider}`,
+    }}>
+      <div style={{ color: t.fg, display: 'flex' }}>
+        {Cmp ? <Cmp size={26} stroke={1.7} /> : (
+          <div style={{ width: 26, height: 26, borderRadius: 6,
+            background: t.semantic.low, opacity: 0.4 }}></div>
+        )}
+      </div>
+      <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 600,
+        letterSpacing: '0.08em', color: t.fgMuted, textTransform: 'uppercase',
+        textAlign: 'center', lineHeight: 1.3 }}>{label}</div>
+    </div>
+  );
+}
+
+function App() {
+  const [mode, setMode] = useState('dark');
+  const t = tokens({ mode, intensityId: 'vivid' });
+  const totalIcons = GROUPS.reduce((n, g) => n + g.items.length, 0);
+
+  const ambient = mode === 'dark'
+    ? 'radial-gradient(ellipse at 50% -10%, #1d1a14, #08070500 60%), #050505'
+    : 'radial-gradient(ellipse at 50% -10%, #FFFEFB, #EFEBE0 60%), #E7E3D6';
+
+  return (
+    <div style={{ minHeight: '100vh', background: ambient, color: t.fg,
+      transition: 'background .3s', paddingBottom: 80 }}>
+      <div style={{ maxWidth: 1080, margin: '0 auto', padding: '56px 40px 0' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between',
+          alignItems: 'flex-end', flexWrap: 'wrap', gap: 24 }}>
+          <div style={{ maxWidth: 620 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <svg width="34" height="34" viewBox="0 0 80 80">
+                <window.F5 color={t.accent} stroke={8}/>
+              </svg>
+              <div style={{ fontFamily: t.fonts.mono, fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.22em', color: t.fgMuted, textTransform: 'uppercase' }}>
+                Sistema de íconos</div>
+            </div>
+            <h1 style={{ fontFamily: t.fonts.display, fontWeight: 800,
+              fontSize: 52, letterSpacing: '-0.04em', lineHeight: 0.98,
+              margin: '20px 0 0', color: t.fg }}>
+              Un solo trazo<br/>para todo SOMA.</h1>
+            <p style={{ fontFamily: t.fonts.body, fontSize: 15, lineHeight: 1.6,
+              color: t.fgMuted, marginTop: 18, maxWidth: 540 }}>
+              {totalIcons} íconos en un lenguaje único — trazo de 1.7, esquinas
+              redondeadas, rejilla de 24, alineados con la onda del isotipo F5.
+              Todos heredan <code style={{ fontFamily: t.fonts.mono, fontSize: 13,
+              color: t.fg }}>currentColor</code>, así que adoptan el acento de
+              cada pilar (lime · coral · blue) sin reescribirse.</p>
+          </div>
+
+          {/* Mode toggle */}
+          <div style={{ display: 'flex', gap: 4, padding: 3,
+            background: t.surface, borderRadius: 999,
+            border: `1px solid ${t.border}` }}>
+            {['dark','light'].map(m => {
+              const on = mode === m;
+              return (
+                <button key={m} onClick={() => setMode(m)} style={{
+                  padding: '8px 18px', borderRadius: 999, border: 'none',
+                  background: on ? t.fg : 'transparent',
+                  color: on ? t.bg : t.fg,
+                  fontFamily: t.fonts.body, fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', textTransform: 'capitalize',
+                }}>{m}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Spec strip */}
+        <div style={{ display: 'flex', gap: 0, marginTop: 36,
+          background: t.surface, borderRadius: 16,
+          border: `1px solid ${t.divider}`, overflow: 'hidden' }}>
+          {[
+            ['24 × 24','viewBox / grid'],
+            ['1.7','stroke width'],
+            ['round','caps & joins'],
+            ['currentColor','hereda acento'],
+            [totalIcons,'íconos'],
+          ].map((s, i, arr) => (
+            <div key={i} style={{ flex: 1, padding: '16px 18px',
+              borderRight: i < arr.length-1 ? `1px solid ${t.divider}` : 'none' }}>
+              <div style={{ fontFamily: t.fonts.display, fontWeight: 800,
+                fontSize: 22, letterSpacing: '-0.03em', color: t.fg }}>{s[0]}</div>
+              <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 600,
+                letterSpacing: '0.14em', color: t.fgFaint, textTransform: 'uppercase',
+                marginTop: 4 }}>{s[1]}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Pillar accent demo */}
+        <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            ['Entrena', t.pillar.train, 'IconBarbell'],
+            ['Come', t.pillar.eat, 'IconProtein'],
+            ['Records', t.pillar.records, 'IconRadar'],
+            ['Mente', t.fg, 'IconBrain'],
+          ].map(([lab, col, ico]) => {
+            const Cmp = window[ico];
+            return (
+              <div key={lab} style={{ display: 'flex', alignItems: 'center', gap: 10,
+                padding: '11px 16px', background: t.surface, borderRadius: 999,
+                border: `1px solid ${t.divider}` }}>
+                <span style={{ color: col, display: 'flex' }}><Cmp size={18}/></span>
+                <span style={{ fontFamily: t.fonts.mono, fontSize: 10, fontWeight: 700,
+                  letterSpacing: '0.14em', color: t.fg, textTransform: 'uppercase' }}>{lab}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Groups */}
+        {GROUPS.map(g => (
+          <section key={g.title} style={{ marginTop: 46 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12,
+              borderBottom: `1px solid ${t.divider}`, paddingBottom: 12 }}>
+              <h2 style={{ fontFamily: t.fonts.display, fontWeight: 700,
+                fontSize: 19, letterSpacing: '-0.02em', margin: 0, color: t.fg }}>
+                {g.title}</h2>
+              {g.note && <span style={{ fontFamily: t.fonts.mono, fontSize: 9.5,
+                fontWeight: 600, letterSpacing: '0.12em', color: t.fgFaint,
+                textTransform: 'uppercase' }}>{g.note}</span>}
+              <span style={{ marginLeft: 'auto', fontFamily: t.fonts.mono,
+                fontSize: 10, color: t.fgFaint }}>{g.items.length}</span>
+            </div>
+            <div style={{ marginTop: 16, display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 8 }}>
+              {g.items.map(([name, label]) => (
+                <IconCard key={name+label} name={name} label={label} t={t}/>
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {/* Foot */}
+        <div style={{ marginTop: 56, textAlign: 'center',
+          borderTop: `1px solid ${t.divider}`, paddingTop: 30 }}>
+          <svg width="28" height="28" viewBox="0 0 80 80" style={{ opacity: 0.4 }}>
+            <window.F5 color={t.fg} stroke={6}/>
+          </svg>
+          <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 600,
+            letterSpacing: '0.22em', color: t.fgFaint, marginTop: 8,
+            textTransform: 'uppercase' }}>SOMA · icon system v1</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
