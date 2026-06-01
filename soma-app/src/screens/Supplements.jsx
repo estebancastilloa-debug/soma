@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocalStorage, todayKey } from '../hooks/useLocalStorage.js';
 import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab } from '../chrome.jsx';
 import { IconPlus } from '../icons.jsx';
 import { F5 } from '../marks.jsx';
@@ -31,7 +32,7 @@ const SUPPS = [
 ];
 
 export function SupplementsScreen({ t, onNav, onMenu, onPlus }) {
-  const [taken, setTaken] = useState(['creatine', 'omega3']);
+  const [taken, setTaken] = useLocalStorage(`soma-supplements-${todayKey()}`, ['creatine', 'omega3']);
   const [expanded, setExpanded] = useState(null);
 
   const progress = taken.length / SUPPS.length;

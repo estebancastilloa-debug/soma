@@ -6,8 +6,8 @@ import { HABITS, PROMPTS } from '../data/habits.js';
 
 export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   const [tab, setTab] = useState('dia');
-  const [mood, setMood] = useState(3);
-  const [habits, setHabits] = useState(['mobility', 'cold', 'meditate']);
+  const [mood, setMood] = useLocalStorage(`soma-mood-${todayKey()}`, 3);
+  const [habits, setHabits] = useLocalStorage(`soma-habits-${todayKey()}`, ['mobility', 'cold', 'meditate']);
   const todayPrompt = PROMPTS[0];
 
   const activeHabits = HABITS.filter(h => habits.includes(h.id)).slice(0, 8);
