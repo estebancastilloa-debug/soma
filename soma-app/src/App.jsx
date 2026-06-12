@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTheme } from './theme.jsx';
+import { useAuth } from './context/AuthContext.jsx';
 import { DrawerMenu, AddSheet, BottomTabBar } from './chrome.jsx';
+import { AuthScreen } from './screens/Auth.jsx';
 
 import { DashboardScreen }  from './screens/Dashboard.jsx';
 import { TrainScreen }      from './screens/Train.jsx';
@@ -158,13 +160,38 @@ function EditMovementModal({ t, open, movement, onClose, onUpdate }) {
   );
 }
 
+// ─── Loading spinner ─────────────────────────────────────────────
+function LoadingScreen({ t }) {
+  return (
+    <div style={{ width:'100vw', height:'100dvh', background:t.bg,
+      display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ fontFamily:t.fonts.mono, fontSize:11, fontWeight:700,
+        letterSpacing:'0.2em', color:t.fgFaint, textTransform:'uppercase' }}>
+        Cargando...
+      </div>
+    </div>
+  );
+}
+
 // ─── App ──────────────────────────────────────────────────────────
 export default function App() {
   const { t } = useTheme();
+  const { session, profile, loading } = useAuth();
   const [screen, setScreen] = useState('home');
   const [addSheet, setAddSheet] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [modal, setModal] = useState(null);
+
+  // Auth gating
+  if (loading) return <LoadingScreen t={t}/>;
+  if (!session) return <AuthScreen t={t}/>;
+  if (!profile?.onboarded) {
+    return (
+      <div style={{ width:'100vw', height:'100dvh', background:t.bg, overflow:'hidden' }}>
+        <OnboardingScreen t={t} onNav={() => {}} onMenu={() => {}} onPlus={() => {}}/>
+      </div>
+    );
+  }
 
   const Screen = SCREENS[screen] || DashboardScreen;
 

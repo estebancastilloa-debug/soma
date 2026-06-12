@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useLocalStorage, todayKey } from '../hooks/useLocalStorage.js';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab } from '../chrome.jsx';
 import { IconPlus } from '../icons.jsx';
 import { F5 } from '../marks.jsx';

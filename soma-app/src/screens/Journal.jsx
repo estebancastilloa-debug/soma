@@ -1,13 +1,42 @@
-import { useState } from 'react';
-import { useLocalStorage, todayKey } from '../hooks/useLocalStorage.js';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab } from '../chrome.jsx';
 import { IconHeart, IconCheck, IconMic, IconCamera, IconPlus, IconRecovery, IconSleep, IconWater, MOOD_ICONS, MOOD_LABELS } from '../icons.jsx';
 import { HABITS, PROMPTS } from '../data/habits.js';
 
 export function JournalScreen({ t, onNav, onMenu, onPlus }) {
+  const { user } = useAuth();
+  const today = new Date().toISOString().slice(0, 10);
   const [tab, setTab] = useState('dia');
-  const [mood, setMood] = useLocalStorage(`soma-mood-${todayKey()}`, 3);
-  const [habits, setHabits] = useLocalStorage(`soma-habits-${todayKey()}`, ['mobility', 'cold', 'meditate']);
+  const [mood, setMood] = useState(3);
+  const [habits, setHabits] = useState(['mobility', 'cold', 'meditate']);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('daily_log')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          if (data.mood !== undefined) setMood(data.mood);
+          if (data.habit_ids?.length) setHabits(data.habit_ids);
+        }
+      });
+  }, [user]);
+
+  async function saveLog(newMood, newHabits) {
+    if (!user) return;
+    await supabase.from('daily_log').upsert({
+      user_id: user.id,
+      date: today,
+      mood: newMood,
+      habit_ids: newHabits,
+    }, { onConflict: 'user_id,date' });
+  }
   const todayPrompt = PROMPTS[0];
 
   const activeHabits = HABITS.filter(h => habits.includes(h.id)).slice(0, 8);

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '../context/AuthContext.jsx';
 import {
   ScreenFrame, StatusBar, BackButton, MonoLabel,
 } from '../chrome.jsx';
