@@ -33,8 +33,34 @@ const SUPPS = [
 ];
 
 export function SupplementsScreen({ t, onNav, onMenu, onPlus }) {
-  const [taken, setTaken] = useLocalStorage(`soma-supplements-${todayKey()}`, ['creatine', 'omega3']);
+  const { user } = useAuth();
+  const today = new Date().toISOString().slice(0, 10);
+  const [taken, setTaken] = useState(['creatine', 'omega3']);
   const [expanded, setExpanded] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('supplements_log')
+      .select('supplement_ids')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.supplement_ids?.length) setTaken(data.supplement_ids);
+      });
+  }, [user]);
+
+  async function toggleTaken(id) {
+    const newTaken = taken.includes(id) ? taken.filter(x => x !== id) : [...taken, id];
+    setTaken(newTaken);
+    if (!user) return;
+    await supabase.from('supplements_log').upsert({
+      user_id: user.id,
+      date: today,
+      supplement_ids: newTaken,
+    }, { onConflict: 'user_id,date' });
+  }
 
   const progress = taken.length / SUPPS.length;
 
@@ -85,7 +111,7 @@ export function SupplementsScreen({ t, onNav, onMenu, onPlus }) {
 
                 {/* Take/untake button */}
                 <button
-                  onClick={() => setTaken(prev => isTaken ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                  onClick={() => toggleTaken(s.id)}
                   style={{
                     width: 38, height: 38, borderRadius: '50%', flexShrink: 0, border: 'none',
                     cursor: 'pointer',

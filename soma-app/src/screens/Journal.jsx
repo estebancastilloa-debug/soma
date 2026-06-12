@@ -77,7 +77,7 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8 }}>
                 {MOOD_ICONS.map((MoodIcon, i) => (
-                  <button key={i} onClick={() => setMood(i)}
+                  <button key={i} onClick={() => { setMood(i); saveLog(i, habits); }}
                     style={{
                       aspectRatio: '1', borderRadius: 12, border: 'none', cursor: 'pointer',
                       background: mood === i ? t.accent : t.s2,
@@ -117,7 +117,11 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                   const isOn = habits.includes(h.id);
                   return (
                     <button key={h.id}
-                      onClick={() => setHabits(prev => isOn ? prev.filter(x => x !== h.id) : [...prev, h.id])}
+                      onClick={() => {
+                        const newHabits = isOn ? habits.filter(x => x !== h.id) : [...habits, h.id];
+                        setHabits(newHabits);
+                        saveLog(mood, newHabits);
+                      }}
                       style={{
                         padding: '12px 8px', borderRadius: 12, border: 'none', cursor: 'pointer',
                         background: isOn ? t.accent : t.surface,

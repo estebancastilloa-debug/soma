@@ -590,6 +590,7 @@ function Step5({ t, name, onEnter }) {
 
 // ─── OnboardingScreen ─────────────────────────────────────────────────
 export function OnboardingScreen({ t, onNav, onMenu, onPlus }) {
+  const { saveProfile } = useAuth();
   const [step, setStep] = useState(0);
 
   // Step 1
@@ -684,7 +685,18 @@ export function OnboardingScreen({ t, onNav, onMenu, onPlus }) {
             <Step5
               t={t}
               name={name}
-              onEnter={() => onNav('home')}
+              onEnter={async () => {
+                await saveProfile({
+                  name,
+                  weight_kg: weight ? parseFloat(weight) : null,
+                  height_cm: height ? parseFloat(height) : null,
+                  goal,
+                  experience,
+                  days_per_week: days,
+                  time_of_day: timeOfDay,
+                  onboarded: true,
+                });
+              }}
             />
           </div>
         )}

@@ -1,3 +1,4 @@
+import { useAuth } from '../context/AuthContext.jsx';
 import {
   StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab,
   MenuButton, BackButton, PillarTag,
@@ -11,6 +12,9 @@ import { F5, WordmarkWithMark } from '../marks.jsx';
 import { LEVELS, PHASES, LEVEL_RULES, LEVEL_PILLARS } from '../data/levels.js';
 
 export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
+  const { profile, signOut } = useAuth();
+  const displayName = profile?.name || 'Usuario';
+  const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
   const currentLevel = LEVELS.find(l => l.id === 4);
 
   return (
@@ -38,13 +42,13 @@ export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
             fontFamily: t.fonts.display, fontWeight: 800, fontSize: 24,
             letterSpacing: '-0.04em', color: t.fgMuted,
           }}>
-            EC
+            {initials}
           </div>
           <div style={{ flex: 1 }}>
             <div style={{
               fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22,
               letterSpacing: '-0.035em', color: t.fg,
-            }}>Esteban Castillo</div>
+            }}>{displayName}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
               <svg width="16" height="16" viewBox="0 0 80 80">
                 <currentLevel.Mark color={t.pillar.records} stroke={8} />
@@ -125,6 +129,15 @@ export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
             <IconChevronRight size={16} color={t.fgFaint} />
           </div>
         ))}
+
+        <button onClick={signOut} style={{
+          margin: '10px 20px 0', width: 'calc(100% - 40px)',
+          padding: '13px', borderRadius: 14, border: `1px solid ${t.semantic.low}44`,
+          background: 'transparent', color: t.semantic.low,
+          fontFamily: t.fonts.body, fontWeight: 600, fontSize: 14, cursor: 'pointer',
+        }}>
+          Cerrar sesión
+        </button>
       </div>
 
       <Fab t={t} onClick={onPlus} />
