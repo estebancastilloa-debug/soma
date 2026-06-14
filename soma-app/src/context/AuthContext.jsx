@@ -32,14 +32,27 @@ export function AuthProvider({ children }) {
   }
 
   async function saveProfile(updates) {
-    if (!session?.user?.id) return { data: null, error: new Error('No active session') };
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert({ id: session.user.id, ...updates }, { onConflict: 'id' })
-      .select()
-      .maybeSingle();
-    if (!error && data) setProfile(data);
-    return { data, error };
+    if (!session?.user?.id) return { error: new Error('No active session') };
+
+    // Call SECURITY DEFINER RPC to bypass RLS
+    const { error } = await supabase.rpc('save_profile', {
+      p_name:         updates.name         ?? null,
+      p_weight_kg:    updates.weight_kg    ?? null,
+      p_height_cm:    updates.height_cm    ?? null,
+      p_goal:         updates.goal         ?? null,
+      p_experience:   updates.experience   ?? null,
+      p_days_per_week: updates.days_per_week ?? null,
+      p_time_of_day:  updates.time_of_day  ?? null,
+      p_rhr:          updates.rhr          ?? null,
+      p_onboarded:    updates.onboarded    ?? false,
+    });
+
+    if (!error) {
+      // Reload fresh profile from DB so App re-renders and exits onboarding
+      await loadProfile(session.user.id);
+    }
+
+    return { error };
   }
 
   async function signOut() {
