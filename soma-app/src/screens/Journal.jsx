@@ -33,6 +33,311 @@ const STATUS_OPTS = [
   { key:'explored',   label:'Explorado'    },
 ];
 
+// ─── Inner Map Data ────────────────────────────────────────────────────
+const INNER_MAP_DATA = {
+  adhd: {
+    color: '#7C3AED',
+    guide: 'El ADHD no es falta de atención — es dificultad para DIRIGIRLA. Tu cerebro opera con dopamina y necesita novedad, urgencia y significado. Con los sistemas correctos, el ADHD se convierte en ventaja competitiva.',
+    prompt: 'Soy [tu nombre], tengo ADHD [diagnosticado/sospechado]. Analiza los documentos cargados y ayúdame a entender: 1) Cómo mi perfil específico de ADHD afecta mis hábitos de entrenamiento y nutrición. 2) Qué sistemas simples puedo implementar para mantener consistencia sin depender de motivación. 3) Cómo aprovechar mi hiperfoco en beneficio de mis metas físicas. Dame estrategias concretas y aplicables hoy.',
+    exercises: [
+      { id: 'a1', text: 'Realiza una tarea difícil durante 5 minutos continuos sin interrupciones' },
+      { id: 'a2', text: 'Crea un "menú de recompensas" inmediatas para celebrar logros pequeños' },
+      { id: 'a3', text: 'Identifica y documenta tu hora de mayor enfoque del día' },
+      { id: 'a4', text: 'Diseña una rutina de 3 pasos para empezar tu entrenamiento (sin negociar)' },
+      { id: 'a5', text: 'Prueba la técnica Pomodoro: 25 min enfoque + 5 min descanso × 3 ciclos' },
+    ],
+  },
+  biotipos: {
+    color: '#0EA5E9',
+    guide: 'Tu biotipo es la combinación de tu arquitectura metabólica y temperamento natural. Entenderlo te permite elegir el entrenamiento y la nutrición que tu cuerpo realmente responde — en lugar de copiar lo que le funciona a otros.',
+    prompt: 'Quiero entender mi biotipo psicológico y metabólico. Analiza mis registros y ayúdame a identificar: 1) Qué tipo metabólico tengo y cómo afecta mi composición corporal y energía. 2) Mi temperamento dominante y cómo influye en mi motivación y tolerancia al estrés. 3) El protocolo de entrenamiento y nutrición más alineado a mi biotipo específico.',
+    exercises: [
+      { id: 'b1', text: 'Registra tus niveles de energía cada 3 horas durante un día completo (1-10)' },
+      { id: 'b2', text: 'Describe tu respuesta natural al estrés: ¿lucha, huida, parálisis o apaciguamiento?' },
+      { id: 'b3', text: 'Identifica 3 actividades que te dan energía vs 3 que te drenan' },
+      { id: 'b4', text: 'Observa tu ritmo de sueño natural un fin de semana sin alarma' },
+      { id: 'b5', text: 'Nota en qué momento del día tienes más energía mental vs física' },
+    ],
+  },
+  heridas: {
+    color: '#DC2626',
+    guide: 'Las heridas de infancia son patrones emocionales formados cuando necesidades básicas no fueron cubiertas. Carl Jung llamó a esto la "sombra". Trabajar con ellas no es revivir el pasado — es dejar de que el pasado viva en ti.',
+    prompt: 'Quiero explorar mis patrones emocionales y relacionales. Basándote en lo que he escrito, ayúdame a identificar: 1) Qué patrones de comportamiento podrían tener raíces en experiencias tempranas. 2) Cuáles son mis disparadores emocionales más comunes. 3) Ejercicios de shadow work específicos para mis patrones. Dame reflexiones profundas pero prácticas y aplicables.',
+    exercises: [
+      { id: 'h1', text: 'Escribe una carta a tu yo de 10 años — sin enviarla, sin censurarte' },
+      { id: 'h2', text: 'Identifica 3 situaciones donde reaccionas de forma desproporcionada' },
+      { id: 'h3', text: '¿Qué necesitabas de pequeño que no recibiste? Escríbelo sin juzgar' },
+      { id: 'h4', text: 'Observa qué características de otros te molestan más (posibles partes tuyas)' },
+      { id: 'h5', text: 'Practica hoy darte lo que tu yo más joven más necesitaba' },
+    ],
+  },
+  energia: {
+    color: '#D97706',
+    guide: 'Todos tenemos energía masculina (dirección, estructura, acción) y femenina (flujo, creatividad, receptividad). No son géneros — son fuerzas complementarias. El desequilibrio en cualquier dirección genera agotamiento y fricción.',
+    prompt: 'Quiero entender mi balance de energías y polaridad. Basándote en mis registros, ayúdame a ver: 1) Cuándo opero más desde energía direccional vs receptiva en mi vida diaria. 2) En qué áreas estoy desbalanceado. 3) Cómo integrar ambas energías de forma más consciente en entrenamiento, trabajo y relaciones.',
+    exercises: [
+      { id: 'e1', text: 'Pasa 20 minutos sin agenda, solo fluyendo — sin metas ni productividad' },
+      { id: 'e2', text: 'Toma una decisión difícil que has estado posponiendo' },
+      { id: 'e3', text: 'Identifica una área con exceso de caos y otra con exceso de rigidez' },
+      { id: 'e4', text: 'Practica pedir ayuda una vez hoy sin explicar o justificar por qué' },
+      { id: 'e5', text: 'Crea estructura visible (lista, horario, ritual) en tu área más caótica' },
+    ],
+  },
+  locus_p: {
+    color: '#059669',
+    guide: 'El locus de control interno significa que crees que tus acciones determinan tus resultados. El externo, que la vida te pasa. La ciencia muestra que el locus interno correlaciona con mejor salud, rendimiento y bienestar general.',
+    prompt: 'Analiza mis registros y ayúdame a identificar mis patrones de locus de control. ¿En qué áreas tiendo a ceder mi poder o culpar circunstancias externas? ¿Dónde tengo más agencia de la que estoy usando? Dame estrategias concretas para fortalecer mi sentido de agencia donde más lo necesito.',
+    exercises: [
+      { id: 'l1', text: 'Lista 5 cosas que definitivamente SÍ controlas en este momento' },
+      { id: 'l2', text: 'Identifica una queja recurrente y escribe qué acción tuya puede cambiarla' },
+      { id: 'l3', text: 'Reemplaza "no puedo" por "no quiero" o "elijo no" durante un día' },
+      { id: 'l4', text: 'Ante el problema más recurrente: ¿qué parte depende únicamente de ti?' },
+      { id: 'l5', text: 'Toma una decisión pequeña hoy sin pedir opinión de nadie' },
+    ],
+  },
+  apego: {
+    color: '#DB2777',
+    guide: 'El estilo de apego se forma en los primeros años y moldea cómo nos relacionamos de adultos. Los estilos son: Seguro, Ansioso, Evitativo y Desorganizado. La buena noticia: el apego es plástico — puede cambiar con conciencia y práctica.',
+    prompt: 'Quiero entender mi estilo de apego y cómo afecta mis relaciones actuales. Basándote en mis notas y reflexiones, ¿qué patrones relacionales observas? ¿Qué características de mi estilo de apego aparecen con más frecuencia? Dame ejercicios prácticos y específicos para moverme hacia un apego más seguro.',
+    exercises: [
+      { id: 'ap1', text: 'Identifica tu respuesta automática cuando alguien se acerca emocionalmente' },
+      { id: 'ap2', text: 'Nota cuándo sientes ansiedad de abandono vs deseo de distancia en 24 hrs' },
+      { id: 'ap3', text: 'Practica pedir una necesidad emocional directamente, sin rodeos ni hints' },
+      { id: 'ap4', text: 'Observa si en relaciones pierdes tu autonomía o la proteges en exceso' },
+      { id: 'ap5', text: 'Escribe cómo era tu relación con tus cuidadores principales en la infancia' },
+    ],
+  },
+};
+
+// ─── InnerMapDetail ────────────────────────────────────────────────────
+function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
+  const detail = INNER_MAP_DATA[item.id] || {};
+  const [copied, setCopied] = useState(false);
+  const [exercises, setExercises] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('soma_psych_exercises') || '{}');
+      return saved[item.id] || [];
+    } catch { return []; }
+  });
+
+  function toggleExercise(exId) {
+    const next = exercises.includes(exId)
+      ? exercises.filter(x => x !== exId)
+      : [...exercises, exId];
+    setExercises(next);
+    try {
+      const all = JSON.parse(localStorage.getItem('soma_psych_exercises') || '{}');
+      all[item.id] = next;
+      localStorage.setItem('soma_psych_exercises', JSON.stringify(all));
+    } catch {}
+  }
+
+  function handleCopy() {
+    if (detail.prompt) {
+      navigator.clipboard.writeText(detail.prompt).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }).catch(() => {});
+    }
+  }
+
+  const statusColor = data.status === 'explored'  ? (t.semantic?.ok  || '#34c759')
+                    : data.status === 'exploring' ? t.accent
+                    : t.fgFaint;
+
+  const exList = detail.exercises || [];
+  const doneEx = exercises.filter(id => exList.find(e => e.id === id)).length;
+  const exProgress = exList.length ? doneEx / exList.length : 0;
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 95,
+      background: t.bg, display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Header */}
+      <div style={{ paddingTop: 52, paddingLeft: 20, paddingRight: 20, paddingBottom: 16, borderBottom: '1px solid ' + t.divider, flexShrink: 0 }}>
+        <button
+          onClick={onBack}
+          style={{
+            border: 'none', background: 'transparent', cursor: 'pointer',
+            fontFamily: t.fonts.mono, fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.14em', color: t.fgMuted, textTransform: 'uppercase',
+            padding: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+          <span style={{ fontSize: 14 }}>←</span> Volver
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 12, height: 12, borderRadius: '50%', background: detail.color || t.accent, flexShrink: 0 }} />
+          <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 24, letterSpacing: '-0.03em', color: t.fg }}>
+            {item.lab}
+          </div>
+        </div>
+        <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, marginTop: 4, paddingLeft: 22 }}>
+          {item.sub}
+        </div>
+      </div>
+
+      {/* Scrollable body */}
+      <div style={{ flex: 1, overflow: 'auto', paddingBottom: 60 }}>
+
+        {/* STATUS */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + t.divider }}>
+          <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: t.fgMuted, textTransform: 'uppercase', marginBottom: 10 }}>
+            Estado
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {STATUS_OPTS.map(opt => {
+              const isActive = data.status === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => onUpdate(item.id, 'status', opt.key)}
+                  style={{
+                    padding: '7px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                    background: isActive ? (detail.color || t.accent) : t.surface,
+                    color: isActive ? '#ffffff' : t.fgMuted,
+                    fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
+                    textTransform: 'uppercase', letterSpacing: '0.1em',
+                    transition: 'all 0.15s',
+                  }}>
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* GUÍA */}
+        {detail.guide && (
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + t.divider }}>
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase', marginBottom: 10 }}>
+              Guía
+            </div>
+            <div style={{ fontFamily: t.fonts.body, fontSize: 14, color: t.fg, lineHeight: 1.6 }}>
+              {detail.guide}
+            </div>
+          </div>
+        )}
+
+        {/* PROMPT NOTEBOOKLM */}
+        {detail.prompt && (
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + t.divider }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase' }}>
+                Prompt NotebookLM
+              </div>
+              <button
+                onClick={handleCopy}
+                style={{
+                  padding: '5px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                  background: copied ? (t.semantic?.ok || '#34c759') : t.surface,
+                  color: copied ? '#ffffff' : t.fg,
+                  fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
+                  letterSpacing: '0.1em', textTransform: 'uppercase',
+                  transition: 'all 0.2s',
+                }}>
+                {copied ? '✓ COPIADO' : 'COPIAR'}
+              </button>
+            </div>
+            <div style={{
+              padding: '12px 14px', background: t.surface,
+              borderRadius: 12, border: '1px solid ' + t.divider,
+            }}>
+              <div style={{
+                fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted,
+                lineHeight: 1.6, fontStyle: 'italic',
+              }}>
+                {detail.prompt}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* EJERCICIOS PRÁCTICOS */}
+        {exList.length > 0 && (
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + t.divider }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase' }}>
+                Ejercicios Prácticos
+              </div>
+              <div style={{ fontFamily: t.fonts.mono, fontSize: 10, fontWeight: 700, color: t.fgMuted }}>
+                {doneEx}/{exList.length}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {exList.map(ex => {
+                const isDone = exercises.includes(ex.id);
+                return (
+                  <button
+                    key={ex.id}
+                    onClick={() => toggleExercise(ex.id)}
+                    style={{
+                      width: '100%', padding: '11px 14px', borderRadius: 12, cursor: 'pointer',
+                      border: isDone ? `2px solid ${detail.color || t.accent}` : '1px solid ' + t.border,
+                      background: isDone ? `${detail.color || t.accent}15` : t.surface,
+                      display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left',
+                    }}>
+                    <div style={{
+                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                      border: isDone ? 'none' : `1.5px solid ${t.fgFaint}`,
+                      background: isDone ? (detail.color || t.accent) : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {isDone && (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round">
+                          <polyline points="4,12 10,18 20,6"/>
+                        </svg>
+                      )}
+                    </div>
+                    <div style={{
+                      fontFamily: t.fonts.body, fontSize: 13, color: isDone ? t.fgMuted : t.fg,
+                      lineHeight: 1.4,
+                      textDecoration: isDone ? 'line-through' : 'none',
+                    }}>
+                      {ex.text}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Progress bar */}
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ flex: 1, height: 4, borderRadius: 2, background: t.s2, overflow: 'hidden' }}>
+                <div style={{
+                  width: `${exProgress * 100}%`, height: '100%',
+                  background: detail.color || t.accent, borderRadius: 2, transition: 'width 0.3s',
+                }} />
+              </div>
+              <span style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, color: t.fgMuted }}>
+                {Math.round(exProgress * 100)}%
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* MIS NOTAS */}
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase', marginBottom: 10 }}>
+            Mis Notas
+          </div>
+          <textarea
+            value={data.notes || ''}
+            onChange={e => onUpdate(item.id, 'notes', e.target.value)}
+            placeholder="Añade tus reflexiones, insights o aprendizajes..."
+            rows={5}
+            style={{
+              width: '100%', background: t.surface, border: '1px solid ' + t.border,
+              borderRadius: 12, padding: '12px 14px', color: t.fg,
+              fontFamily: t.fonts.body, fontSize: 13.5, lineHeight: 1.5,
+              outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── JournalScreen ─────────────────────────────────────────────────────
 export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   const { user } = useAuth();
@@ -49,7 +354,7 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     try { return JSON.parse(localStorage.getItem('soma_psychology') || '{}'); }
     catch { return {}; }
   });
-  const [expandedPsych, setExpandedPsych] = useState(null);
+  const [psychDetailItem, setPsychDetailItem] = useState(null);
 
   // Habit template — which habits the user tracks
   const [habitTemplate, setHabitTemplate] = useState(() => {
@@ -308,27 +613,26 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
             <div style={{ margin:'14px 20px 0' }}>
               <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:22, letterSpacing:'-0.03em', color:t.fg, marginBottom:4 }}>Inner Map</div>
               <div style={{ fontFamily:t.fonts.body, fontSize:13, color:t.fgMuted, lineHeight:1.5 }}>
-                Toca cualquier marco para agregar notas y cambiar tu estado de exploración.
+                Toca cualquier marco para explorar tu perfil psicológico en profundidad.
               </div>
             </div>
 
             {PSYCH_ITEMS.map(item => {
               const data = psychData[item.id] || { status:'unexplored', notes:'' };
-              const isExpanded = expandedPsych === item.id;
+              const detail = INNER_MAP_DATA[item.id] || {};
               const statusColor = data.status === 'explored'  ? (t.semantic?.ok  || '#34c759')
                                 : data.status === 'exploring' ? t.accent
                                 : t.fgFaint;
 
               return (
                 <div key={item.id} style={{ margin:'8px 20px 0', background:t.surface, borderRadius:14, border:'1px solid '+t.divider, overflow:'hidden' }}>
-                  {/* Card header — clickable */}
                   <button
-                    onClick={() => setExpandedPsych(isExpanded ? null : item.id)}
+                    onClick={() => setPsychDetailItem(item)}
                     style={{
                       width:'100%', padding:'14px 16px', border:'none', background:'transparent',
                       cursor:'pointer', display:'flex', alignItems:'center', gap:12, textAlign:'left',
                     }}>
-                    <div style={{ width:10, height:10, borderRadius:'50%', background:statusColor, flexShrink:0 }}/>
+                    <div style={{ width:10, height:10, borderRadius:'50%', background: detail.color || statusColor, flexShrink:0 }}/>
                     <div style={{ flex:1 }}>
                       <div style={{ fontFamily:t.fonts.body, fontWeight:600, fontSize:13.5, color:t.fg }}>{item.lab}</div>
                       <div style={{ fontFamily:t.fonts.body, fontSize:11.5, color:t.fgMuted, marginTop:2 }}>{item.sub}</div>
@@ -338,44 +642,10 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                         {STATUS_OPTS.find(s => s.key === data.status)?.label || 'Sin explorar'}
                       </div>
                       <div style={{ fontFamily:t.fonts.mono, fontSize:10, color:t.fgFaint, marginTop:2 }}>
-                        {isExpanded ? '▲ cerrar' : '▼ abrir'}
+                        Ver guía →
                       </div>
                     </div>
                   </button>
-
-                  {/* Expanded panel */}
-                  {isExpanded && (
-                    <div style={{ padding:'0 16px 16px', borderTop:'1px solid '+t.divider, background:t.s2 }}>
-                      {/* Status selector */}
-                      <div style={{ display:'flex', gap:6, marginTop:12, marginBottom:12 }}>
-                        {STATUS_OPTS.map(opt => (
-                          <button key={opt.key}
-                            onClick={() => updatePsych(item.id, 'status', opt.key)}
-                            style={{
-                              padding:'5px 10px', borderRadius:20, border:'none', cursor:'pointer',
-                              background: data.status === opt.key ? t.accent : t.surface,
-                              color: data.status === opt.key ? '#0A0908' : t.fgMuted,
-                              fontFamily:t.fonts.mono, fontSize:9, fontWeight:700,
-                              textTransform:'uppercase', letterSpacing:'0.1em',
-                            }}>{opt.label}</button>
-                        ))}
-                      </div>
-
-                      {/* Notes textarea */}
-                      <textarea
-                        value={data.notes || ''}
-                        onChange={e => updatePsych(item.id, 'notes', e.target.value)}
-                        placeholder="Añade tus notas, reflexiones o insights..."
-                        rows={3}
-                        style={{
-                          width:'100%', background:t.surface, border:`1px solid ${t.border}`,
-                          borderRadius:10, padding:'10px 12px', color:t.fg,
-                          fontFamily:t.fonts.body, fontSize:13, lineHeight:1.5,
-                          outline:'none', resize:'vertical', boxSizing:'border-box',
-                        }}
-                      />
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -440,6 +710,17 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
           </>
         )}
       </div>
+
+      {/* InnerMapDetail overlay */}
+      {psychDetailItem && (
+        <InnerMapDetail
+          t={t}
+          item={psychDetailItem}
+          data={psychData[psychDetailItem.id] || { status: 'unexplored', notes: '' }}
+          onBack={() => setPsychDetailItem(null)}
+          onUpdate={updatePsych}
+        />
+      )}
 
       {/* Habit edit overlay */}
       {showHabitEdit && (

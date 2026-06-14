@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ScreenFrame, StatusBar, PillarHeader,
   MonoLabel, SectionHead, Fab,
@@ -5,47 +6,39 @@ import {
 import { F5 } from '../marks.jsx';
 import {
   IconSearch, IconCamera, IconMic,
-  IconChevronRight, IconWater,
+  IconWater,
   IconProtein, IconCarbs, IconFat,
 } from '../icons.jsx';
 
 // ─── SVG donut chart ─────────────────────────────────────────────────
-// Protein: coral, Carbs: blue, Fat: fg
 function DonutChart({ t, protein = 0.43, carbs = 0.34, fat = 0.23 }) {
   const cx = 65, cy = 65, R = 56, stroke = 11;
   const circ = 2 * Math.PI * R;
-  // Draw three arcs sequentially; each arc is a strokeDasharray segment
   const pLen = protein * circ;
   const cLen = carbs * circ;
   const fLen = fat * circ;
   const gap = 2.5;
 
-  // We rotate each arc so they tile around the circle
-  // Arc 1: protein starts at top (-90°)
   const p1Offset = 0;
   const c1Offset = pLen + gap;
   const f1Offset = pLen + cLen + gap * 2;
 
   return (
     <svg width={130} height={130} viewBox="0 0 130 130">
-      {/* Track */}
       <circle cx={cx} cy={cy} r={R} fill="none"
         stroke="#0A090820" strokeWidth={stroke}/>
-      {/* Protein arc */}
       <circle cx={cx} cy={cy} r={R} fill="none"
         stroke={t.secondary} strokeWidth={stroke}
         strokeDasharray={`${pLen - gap} ${circ - pLen + gap}`}
         strokeDashoffset={-(p1Offset) + circ / 4}
         strokeLinecap="round"
         transform={`rotate(-90 ${cx} ${cy})`}/>
-      {/* Carbs arc */}
       <circle cx={cx} cy={cy} r={R} fill="none"
         stroke={t.tertiary} strokeWidth={stroke}
         strokeDasharray={`${cLen - gap} ${circ - cLen + gap}`}
         strokeDashoffset={-(c1Offset) + circ / 4}
         strokeLinecap="round"
         transform={`rotate(-90 ${cx} ${cy})`}/>
-      {/* Fat arc */}
       <circle cx={cx} cy={cy} r={R} fill="none"
         stroke={t.fg} strokeWidth={stroke}
         strokeDasharray={`${fLen - gap} ${circ - fLen + gap}`}
@@ -93,61 +86,40 @@ function WaterBar({ t, total = 8, filled = 5 }) {
   );
 }
 
-// ─── Meal row ─────────────────────────────────────────────────────────
-const MEALS = [
-  { name: 'Desayuno', sub: 'Avena · huevo · café',    kcal: 420, done: true  },
-  { name: 'Almuerzo', sub: 'Arroz · pollo · ensalada', kcal: 720, done: true  },
-  { name: 'Snack',    sub: 'Yogur · fruta · nueces',   kcal: 280, done: true  },
-  { name: 'Cena',     sub: 'Planificado',               kcal: 420, done: false },
-];
-
-function MealRow({ t, name, sub, kcal, done }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12,
-      padding: '11px 20px', borderBottom: `1px solid ${t.divider}`,
-      opacity: done ? 1 : 0.45 }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-        background: done ? t.pillar.eat + '25' : t.s2,
-        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 9.5,
-          color: done ? t.pillar.eat : t.fgFaint, letterSpacing: '0.06em' }}>
-          {kcal}k
-        </span>
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13.5, color: t.fg }}>
-          {name}
-        </div>
-        <div style={{ fontFamily: t.fonts.body, fontSize: 11, color: t.fgMuted, marginTop: 1,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {sub}
-        </div>
-      </div>
-      <IconChevronRight size={14} stroke={2} color={t.fgFaint}/>
-    </div>
-  );
-}
-
 // ─── Pantry item ──────────────────────────────────────────────────────
-const PANTRY = [
-  { name: 'Arroz integral', stock: 4 },
-  { name: 'Pechuga pollo',  stock: 2 },
-  { name: 'Huevos',         stock: 3 },
-  { name: 'Avena',          stock: 1 },
-];
+function PantryItem({ t, name, stock, onDelete }) {
+  const stockColor = stock <= 1
+    ? t.semantic.low
+    : stock === 2
+      ? '#F59E0B'
+      : stock === 3
+        ? t.semantic.ok
+        : t.accent;
 
-function PantryItem({ t, name, stock }) {
   return (
     <div style={{ background: t.surface, border: `1px solid ${t.divider}`,
-      borderRadius: 12, padding: '12px 12px 10px' }}>
+      borderRadius: 12, padding: '12px 12px 10px', position: 'relative' }}>
+      {onDelete && (
+        <button
+          onClick={onDelete}
+          style={{
+            position: 'absolute', top: 6, right: 6,
+            background: 'transparent', border: 'none',
+            color: t.fgFaint, cursor: 'pointer',
+            fontFamily: t.fonts.mono, fontSize: 12, lineHeight: 1,
+            padding: '2px 4px',
+          }}
+        >
+          ×
+        </button>
+      )}
       <div style={{ fontFamily: t.fonts.body, fontWeight: 600, fontSize: 12.5,
-        color: t.fg, marginBottom: 8, lineHeight: 1.2 }}>{name}</div>
-      {/* 4-bar stock indicator */}
+        color: t.fg, marginBottom: 8, lineHeight: 1.2, paddingRight: onDelete ? 16 : 0 }}>{name}</div>
       <div style={{ display: 'flex', gap: 3 }}>
         {[1,2,3,4].map(n => (
           <div key={n} style={{
             flex: 1, height: 5, borderRadius: 3,
-            background: n <= stock ? t.pillar.eat : t.s2,
+            background: n <= stock ? stockColor : t.s2,
           }}/>
         ))}
       </div>
@@ -160,8 +132,248 @@ function PantryItem({ t, name, stock }) {
   );
 }
 
+// ─── Pantry Modal ─────────────────────────────────────────────────────
+const PANTRY_KEY = 'soma_pantry';
+
+function loadPantry() {
+  try {
+    return JSON.parse(localStorage.getItem(PANTRY_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function savePantry(items) {
+  localStorage.setItem(PANTRY_KEY, JSON.stringify(items));
+}
+
+function PantryModal({ t, onClose }) {
+  const [items, setItems]       = useState(() => loadPantry());
+  const [newName, setNewName]   = useState('');
+  const [newStock, setNewStock] = useState(3);
+
+  function handleAdd() {
+    if (!newName.trim()) return;
+    const next = [...items, { id: Date.now(), name: newName.trim(), stock: newStock }];
+    setItems(next);
+    savePantry(next);
+    setNewName('');
+    setNewStock(3);
+  }
+
+  function handleDelete(id) {
+    const next = items.filter(it => it.id !== id);
+    setItems(next);
+    savePantry(next);
+  }
+
+  const stockColors = [t.semantic.low, '#F59E0B', t.semantic.ok, t.accent];
+  const stockLabels = ['Agotado', 'Bajo', 'Ok', 'Lleno'];
+
+  const totalItems   = items.length;
+  const lowItems     = items.filter(it => it.stock === 2).length;
+  const emptyItems   = items.filter(it => it.stock <= 1).length;
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 90,
+      background: t.bg, display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 20px 12px',
+        borderBottom: `1px solid ${t.divider}`,
+      }}>
+        <div style={{
+          fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22,
+          letterSpacing: '-0.04em', color: t.fg,
+        }}>
+          Despensa
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            background: t.surface, border: `1px solid ${t.divider}`,
+            borderRadius: '50%', width: 32, height: 32,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: t.fgMuted,
+            fontFamily: t.fonts.mono, fontSize: 16, fontWeight: 700,
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Stats row */}
+      <div style={{ margin: '12px 20px 0', display: 'flex', gap: 8 }}>
+        {[
+          { lab: 'TOTAL',    val: String(totalItems), color: t.fgMuted },
+          { lab: 'BAJOS',    val: String(lowItems),   color: '#F59E0B' },
+          { lab: 'AGOTADOS', val: String(emptyItems), color: t.semantic.low },
+        ].map(s => (
+          <div key={s.lab} style={{ flex: 1, background: t.surface,
+            border: `1px solid ${t.divider}`, borderRadius: 10,
+            padding: '8px 10px', textAlign: 'center' }}>
+            <div style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 18,
+              color: s.color, letterSpacing: '-0.03em' }}>{s.val}</div>
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 8, fontWeight: 700,
+              color: t.fgFaint, letterSpacing: '0.14em', textTransform: 'uppercase',
+              marginTop: 2 }}>{s.lab}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Scrollable list */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px 0' }}>
+        {items.length === 0 ? (
+          <div style={{
+            textAlign: 'center', padding: '32px 0',
+            fontFamily: t.fonts.body, fontSize: 13, color: t.fgMuted,
+          }}>
+            Tu despensa está vacía. Agrega artículos abajo.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {items.map(item => (
+              <PantryItem
+                key={item.id}
+                t={t}
+                name={item.name}
+                stock={item.stock}
+                onDelete={() => handleDelete(item.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Add new item */}
+        <div style={{
+          marginTop: 16, background: t.surface,
+          border: `1px solid ${t.divider}`, borderRadius: 14,
+          padding: '14px 14px',
+        }}>
+          <div style={{
+            fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            color: t.fgFaint, marginBottom: 10,
+          }}>
+            Agregar artículo
+          </div>
+
+          <input
+            placeholder="Nombre del artículo"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            style={{
+              width: '100%', background: t.bg, border: `1px solid ${t.divider}`,
+              borderRadius: 10, padding: '10px 12px', color: t.fg,
+              fontFamily: t.fonts.body, fontSize: 14, outline: 'none',
+              boxSizing: 'border-box', marginBottom: 10,
+            }}
+          />
+
+          {/* Stock buttons */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+            {[1,2,3,4].map((n, i) => (
+              <button
+                key={n}
+                onClick={() => setNewStock(n)}
+                style={{
+                  flex: 1,
+                  background: newStock === n ? stockColors[i] : t.bg,
+                  border: `1px solid ${newStock === n ? stockColors[i] : t.divider}`,
+                  borderRadius: 8, padding: '7px 4px',
+                  fontFamily: t.fonts.body, fontWeight: 600, fontSize: 10.5,
+                  color: newStock === n ? '#0A0908' : t.fgMuted,
+                  cursor: 'pointer',
+                }}
+              >
+                {stockLabels[i]}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={handleAdd}
+            disabled={!newName.trim()}
+            style={{
+              width: '100%',
+              background: newName.trim() ? t.pillar.eat : t.fgFaint,
+              color: '#0A0908', border: 'none', borderRadius: 10,
+              padding: '11px 0', fontFamily: t.fonts.body,
+              fontWeight: 700, fontSize: 14, cursor: newName.trim() ? 'pointer' : 'default',
+              letterSpacing: '-0.01em',
+            }}
+          >
+            Agregar
+          </button>
+        </div>
+
+        <div style={{ height: 32 }}/>
+      </div>
+    </div>
+  );
+}
+
+// ─── Meals coming soon overlay ────────────────────────────────────────
+function MealsModal({ t, onClose }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 90,
+      background: t.bg, display: 'flex', flexDirection: 'column',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 20px 12px',
+        borderBottom: `1px solid ${t.divider}`,
+      }}>
+        <div style={{
+          fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22,
+          letterSpacing: '-0.04em', color: t.fg,
+        }}>
+          Comidas de hoy
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            background: t.surface, border: `1px solid ${t.divider}`,
+            borderRadius: '50%', width: 32, height: 32,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: t.fgMuted,
+            fontFamily: t.fonts.mono, fontSize: 16, fontWeight: 700,
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 12, padding: '0 32px',
+      }}>
+        <div style={{
+          fontFamily: t.fonts.display, fontWeight: 800, fontSize: 18,
+          letterSpacing: '-0.03em', color: t.fg, textAlign: 'center',
+        }}>
+          Próximamente
+        </div>
+        <div style={{
+          fontFamily: t.fonts.body, fontSize: 13, color: t.fgMuted,
+          textAlign: 'center', lineHeight: 1.5,
+        }}>
+          Próximamente: registro de comidas detallado
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── EatScreen ───────────────────────────────────────────────────────
 export function EatScreen({ t, onNav, onMenu, onPlus }) {
+  const [showPantry, setShowPantry] = useState(false);
+  const [showMeals, setShowMeals]   = useState(false);
+
   return (
     <ScreenFrame t={t} accentColor={t.pillar.eat}>
       <StatusBar t={t}/>
@@ -243,15 +455,23 @@ export function EatScreen({ t, onNav, onMenu, onPlus }) {
         </div>
 
         {/* ── Meals today ── */}
-        <SectionHead t={t} actionLabel="ver todas">comidas de hoy</SectionHead>
-        <div style={{ marginTop: 8, borderTop: `1px solid ${t.divider}` }}>
-          {MEALS.map((m) => (
-            <MealRow key={m.name} t={t} {...m}/>
-          ))}
+        <SectionHead t={t} actionLabel="ver todas" onAction={() => setShowMeals(true)}>
+          comidas de hoy
+        </SectionHead>
+        <div style={{
+          margin: '8px 20px 0', padding: '16px',
+          background: t.surface, border: `1px solid ${t.divider}`,
+          borderRadius: 14, textAlign: 'center',
+        }}>
+          <div style={{ fontFamily: t.fonts.body, fontSize: 13, color: t.fgMuted }}>
+            Registra tus comidas tocando +
+          </div>
         </div>
 
         {/* ── Pantry ── */}
-        <SectionHead t={t} actionLabel="ver todo">despensa</SectionHead>
+        <SectionHead t={t} actionLabel="ver todo" onAction={() => setShowPantry(true)}>
+          despensa
+        </SectionHead>
 
         {/* Stats row */}
         <div style={{ margin: '10px 20px 0', display: 'flex', gap: 8 }}>
@@ -272,12 +492,20 @@ export function EatScreen({ t, onNav, onMenu, onPlus }) {
           ))}
         </div>
 
-        {/* 2-col pantry grid */}
+        {/* 2-col pantry grid preview */}
         <div style={{ margin: '10px 20px 0', display: 'grid',
           gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {PANTRY.map((p) => (
-            <PantryItem key={p.name} t={t} {...p}/>
+          {(JSON.parse(localStorage.getItem('soma_pantry') || '[]')).slice(0, 4).map((p) => (
+            <PantryItem key={p.id} t={t} name={p.name} stock={p.stock}/>
           ))}
+          {(JSON.parse(localStorage.getItem('soma_pantry') || '[]')).length === 0 && (
+            <div style={{
+              gridColumn: '1 / -1', textAlign: 'center', padding: '20px 0',
+              fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgFaint,
+            }}>
+              Toca "ver todo" para gestionar tu despensa
+            </div>
+          )}
         </div>
 
         {/* Shopping list CTA */}
@@ -317,6 +545,9 @@ export function EatScreen({ t, onNav, onMenu, onPlus }) {
       </div>
 
       <Fab t={t} onClick={onPlus}/>
+
+      {showPantry && <PantryModal t={t} onClose={() => setShowPantry(false)}/>}
+      {showMeals  && <MealsModal  t={t} onClose={() => setShowMeals(false)}/>}
     </ScreenFrame>
   );
 }

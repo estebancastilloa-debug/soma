@@ -15,11 +15,29 @@ function useDebounce(fn, delay) {
   }, [fn, delay]);
 }
 
-const LS_FOCUS  = 'soma_focus_areas';
-const LS_INJURY = 'soma_injury_notes';
+const LS_FOCUS     = 'soma_focus_areas';
+const LS_INJURY    = 'soma_injury_notes';
+const LS_EQUIPMENT = 'soma_equipment';
+const LS_MOVEMENTS = 'soma_movements';
+const LS_GOALS     = 'soma_goals';
 
 function loadFocus()  { try { return JSON.parse(localStorage.getItem(LS_FOCUS) || '[]'); } catch { return []; } }
 function saveFocus(v) { localStorage.setItem(LS_FOCUS, JSON.stringify(v)); }
+
+function loadEquipment()  { try { return JSON.parse(localStorage.getItem(LS_EQUIPMENT) || '[]'); } catch { return []; } }
+function saveEquipment(v) { localStorage.setItem(LS_EQUIPMENT, JSON.stringify(v)); }
+
+function loadMovements()  { try { return JSON.parse(localStorage.getItem(LS_MOVEMENTS) || '[]'); } catch { return []; } }
+function saveMovements(v) { localStorage.setItem(LS_MOVEMENTS, JSON.stringify(v)); }
+
+function loadGoals() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_GOALS) || 'null') || { annual: '', quarterly: [], weekly: [] };
+  } catch {
+    return { annual: '', quarterly: [], weekly: [] };
+  }
+}
+function saveGoals(v) { localStorage.setItem(LS_GOALS, JSON.stringify(v)); }
 
 // ─── sub-components ───────────────────────────────────────────────────────────
 
@@ -434,6 +452,468 @@ function FocusAreasCard({ t }) {
   );
 }
 
+// ─── Equipment card ───────────────────────────────────────────────────────────
+
+function EquipmentCard({ t }) {
+  const [items, setItems]     = useState(() => loadEquipment());
+  const [adding, setAdding]   = useState(false);
+  const [newName, setNewName] = useState('');
+
+  function persist(next) {
+    setItems(next);
+    saveEquipment(next);
+  }
+
+  function addItem() {
+    const name = newName.trim();
+    if (!name) return;
+    persist([...items, { id: Date.now().toString(), name }]);
+    setNewName('');
+    setAdding(false);
+  }
+
+  function removeItem(id) {
+    persist(items.filter(i => i.id !== id));
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') addItem();
+    if (e.key === 'Escape') { setAdding(false); setNewName(''); }
+  }
+
+  return (
+    <div style={{
+      background: t.surface, borderRadius: 16, padding: 16,
+      margin: '8px 20px', border: `1px solid ${t.divider}`,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>
+          Equipo disponible
+        </div>
+        {!adding && (
+          <button onClick={() => setAdding(true)} style={{
+            width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.divider}`,
+            background: 'transparent', color: t.fgMuted, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, lineHeight: 1,
+          }}>
+            +
+          </button>
+        )}
+      </div>
+
+      {items.length === 0 && !adding && (
+        <div style={{ fontFamily: t.fonts.body, fontSize: 13, color: t.fgFaint, padding: '4px 0 2px', textAlign: 'center' }}>
+          Agrega el equipo que tienes disponible
+        </div>
+      )}
+
+      {items.map((item, idx) => (
+        <div key={item.id} style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 0',
+          borderBottom: idx < items.length - 1 ? `1px solid ${t.divider}` : 'none',
+        }}>
+          <div style={{
+            flex: 1, fontFamily: t.fonts.body, fontSize: 13, color: t.fg,
+          }}>
+            {item.name}
+          </div>
+          <button onClick={() => removeItem(item.id)} style={{
+            width: 24, height: 24, borderRadius: 6, border: 'none',
+            background: 'transparent', color: t.fgFaint, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, flexShrink: 0,
+          }}>
+            ×
+          </button>
+        </div>
+      ))}
+
+      {adding && (
+        <div style={{ marginTop: items.length > 0 ? 10 : 4, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Input
+            t={t}
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="ej. Barra olímpica, kettlebell 16kg…"
+            style={{ flex: 1 }}
+          />
+          <button onClick={addItem} style={{
+            padding: '11px 14px', borderRadius: 12, border: 'none',
+            background: t.accent, color: '#0A0908', cursor: 'pointer',
+            fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13, flexShrink: 0,
+          }}>
+            Agregar
+          </button>
+          <button onClick={() => { setAdding(false); setNewName(''); }} style={{
+            padding: '11px 10px', borderRadius: 12,
+            border: `1px solid ${t.divider}`, background: 'transparent',
+            color: t.fgMuted, cursor: 'pointer',
+            fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13, flexShrink: 0,
+          }}>
+            ✕
+          </button>
+        </div>
+      )}
+
+      {items.length === 0 && !adding && (
+        <div style={{
+          fontFamily: t.fonts.body, fontSize: 11, color: t.fgFaint,
+          marginTop: 8, lineHeight: 1.5,
+        }}>
+          Ej: Barra olímpica, mancuernas 20kg, kettlebell 16kg, anillas…
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Movements card ───────────────────────────────────────────────────────────
+
+const MOV_CATS = ['Todos', 'Fuerza', 'Olímpico', 'Gimnasia', 'Cardio'];
+
+const CAT_COLORS = {
+  Fuerza:   { bg: '#2A1F00', color: '#F5C542' },
+  Olímpico: { bg: '#001F2A', color: '#42C5F5' },
+  Gimnasia: { bg: '#1F002A', color: '#C542F5' },
+  Cardio:   { bg: '#002A1A', color: '#42F5A0' },
+};
+
+function MovementsCard({ t }) {
+  const [movements, setMovements] = useState(() => loadMovements());
+  const [filter, setFilter]       = useState('Todos');
+  const [adding, setAdding]       = useState(false);
+  const [newName, setNewName]     = useState('');
+  const [newCat, setNewCat]       = useState('Fuerza');
+
+  function persist(next) {
+    setMovements(next);
+    saveMovements(next);
+  }
+
+  function addMovement() {
+    const name = newName.trim();
+    if (!name) return;
+    persist([...movements, { id: Date.now().toString(), name, cat: newCat }]);
+    setNewName('');
+    setNewCat('Fuerza');
+    setAdding(false);
+  }
+
+  function removeMovement(id) {
+    persist(movements.filter(m => m.id !== id));
+  }
+
+  const visible = filter === 'Todos' ? movements : movements.filter(m => m.cat === filter);
+
+  return (
+    <div style={{
+      background: t.surface, borderRadius: 16, padding: 16,
+      margin: '8px 20px', border: `1px solid ${t.divider}`,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>
+          Mis movimientos
+        </div>
+        {!adding && (
+          <button onClick={() => setAdding(true)} style={{
+            width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.divider}`,
+            background: 'transparent', color: t.fgMuted, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, lineHeight: 1,
+          }}>
+            +
+          </button>
+        )}
+      </div>
+
+      {/* Category filter pills */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {MOV_CATS.map(cat => (
+          <Pill key={cat} t={t} active={filter === cat} onClick={() => setFilter(cat)}
+            style={{ padding: '5px 11px', fontSize: 11 }}>
+            {cat}
+          </Pill>
+        ))}
+      </div>
+
+      {visible.length === 0 && !adding && (
+        <div style={{
+          fontFamily: t.fonts.body, fontSize: 13, color: t.fgFaint,
+          padding: '6px 0', textAlign: 'center',
+        }}>
+          {filter === 'Todos'
+            ? 'Agrega los movimientos y ejercicios que dominas'
+            : `No hay movimientos en ${filter}`}
+        </div>
+      )}
+
+      {visible.map((mov, idx) => {
+        const clr = CAT_COLORS[mov.cat] || { bg: t.s2, color: t.fgMuted };
+        return (
+          <div key={mov.id} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 0',
+            borderBottom: idx < visible.length - 1 ? `1px solid ${t.divider}` : 'none',
+          }}>
+            <div style={{ flex: 1, fontFamily: t.fonts.body, fontSize: 13, color: t.fg }}>
+              {mov.name}
+            </div>
+            <span style={{
+              padding: '3px 8px', borderRadius: 8,
+              background: clr.bg, color: clr.color,
+              fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
+              letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0,
+            }}>
+              {mov.cat}
+            </span>
+            <button onClick={() => removeMovement(mov.id)} style={{
+              width: 24, height: 24, borderRadius: 6, border: 'none',
+              background: 'transparent', color: t.fgFaint, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, flexShrink: 0,
+            }}>
+              ×
+            </button>
+          </div>
+        );
+      })}
+
+      {adding && (
+        <div style={{ marginTop: 12 }}>
+          <Input
+            t={t}
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="ej. Sentadilla frontal, muscle-up…"
+            style={{ marginBottom: 10 }}
+          />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            {MOV_CATS.filter(c => c !== 'Todos').map(cat => (
+              <Pill key={cat} t={t} active={newCat === cat} onClick={() => setNewCat(cat)}
+                style={{ padding: '5px 11px', fontSize: 11 }}>
+                {cat}
+              </Pill>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={addMovement} style={{
+              flex: 1, padding: '11px', borderRadius: 12, border: 'none',
+              background: t.accent, color: '#0A0908', cursor: 'pointer',
+              fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13,
+            }}>
+              Agregar
+            </button>
+            <button onClick={() => { setAdding(false); setNewName(''); setNewCat('Fuerza'); }} style={{
+              flex: 1, padding: '11px', borderRadius: 12,
+              border: `1px solid ${t.divider}`, background: 'transparent',
+              color: t.fgMuted, cursor: 'pointer',
+              fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13,
+            }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Goals card (Quiet Progress-inspired) ────────────────────────────────────
+
+function GoalsCard({ t }) {
+  const [goals, setGoals] = useState(() => loadGoals());
+
+  function persist(next) {
+    setGoals(next);
+    saveGoals(next);
+  }
+
+  // Annual
+  function setAnnual(val) {
+    persist({ ...goals, annual: val });
+  }
+
+  // Quarterly
+  function addQuarterly() {
+    if (goals.quarterly.length >= 3) return;
+    const q = goals.quarterly.length + 1;
+    persist({ ...goals, quarterly: [...goals.quarterly, { q, text: '' }] });
+  }
+  function setQuarterly(idx, val) {
+    const next = goals.quarterly.map((item, i) => i === idx ? { ...item, text: val } : item);
+    persist({ ...goals, quarterly: next });
+  }
+  function removeQuarterly(idx) {
+    persist({ ...goals, quarterly: goals.quarterly.filter((_, i) => i !== idx) });
+  }
+
+  // Weekly
+  function addWeekly() {
+    if (goals.weekly.length >= 3) return;
+    const w = goals.weekly.length + 1;
+    persist({ ...goals, weekly: [...goals.weekly, { w, text: '', done: false }] });
+  }
+  function setWeeklyText(idx, val) {
+    const next = goals.weekly.map((item, i) => i === idx ? { ...item, text: val } : item);
+    persist({ ...goals, weekly: next });
+  }
+  function toggleWeeklyDone(idx) {
+    const next = goals.weekly.map((item, i) => i === idx ? { ...item, done: !item.done } : item);
+    persist({ ...goals, weekly: next });
+  }
+  function removeWeekly(idx) {
+    persist({ ...goals, weekly: goals.weekly.filter((_, i) => i !== idx) });
+  }
+
+  const sectionLabel = {
+    fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
+    letterSpacing: '0.18em', color: t.fgFaint, textTransform: 'uppercase',
+    marginBottom: 8,
+  };
+
+  const addRowBtn = (onClick, disabled) => (
+    <button onClick={onClick} disabled={disabled} style={{
+      marginTop: 8, width: '100%', padding: '8px', borderRadius: 10,
+      border: `1px dashed ${t.divider}`, background: 'transparent',
+      color: disabled ? t.fgFaint : t.fgMuted, cursor: disabled ? 'default' : 'pointer',
+      fontFamily: t.fonts.body, fontSize: 12, fontWeight: 600,
+      opacity: disabled ? 0.4 : 1,
+    }}>
+      + Agregar
+    </button>
+  );
+
+  return (
+    <div style={{
+      background: t.surface, borderRadius: 16, padding: 16,
+      margin: '8px 20px', border: `1px solid ${t.divider}`,
+    }}>
+      {/* Header */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>
+          Metas
+        </div>
+        <div style={{
+          fontFamily: t.fonts.mono, fontSize: 9.5, color: t.fgFaint,
+          letterSpacing: '0.12em', marginTop: 2,
+        }}>
+          Anual → Trimestral → Semanal
+        </div>
+      </div>
+
+      {/* META ANUAL */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={sectionLabel}>Meta anual</div>
+        <textarea
+          value={goals.annual}
+          onChange={e => setAnnual(e.target.value)}
+          placeholder="¿Qué quieres lograr este año?"
+          rows={2}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            padding: '11px 12px', borderRadius: 12,
+            border: `1px solid ${t.border}`,
+            background: t.bg, color: t.fg,
+            fontFamily: t.fonts.body, fontSize: 13,
+            lineHeight: 1.55, resize: 'none', outline: 'none',
+          }}
+        />
+      </div>
+
+      {/* Divider */}
+      <div style={{ height: 1, background: t.divider, marginBottom: 14 }} />
+
+      {/* ESTE TRIMESTRE */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={sectionLabel}>Este trimestre</div>
+        {goals.quarterly.map((item, idx) => (
+          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{
+              fontFamily: t.fonts.mono, fontSize: 10, color: t.fgFaint,
+              flexShrink: 0, width: 14, textAlign: 'right',
+            }}>
+              Q{item.q}
+            </span>
+            <input
+              value={item.text}
+              onChange={e => setQuarterly(idx, e.target.value)}
+              placeholder={`Meta trimestral ${idx + 1}…`}
+              style={{
+                flex: 1, padding: '9px 11px', borderRadius: 10,
+                border: `1px solid ${t.border}`,
+                background: t.bg, color: t.fg,
+                fontFamily: t.fonts.body, fontSize: 13, outline: 'none',
+              }}
+            />
+            <button onClick={() => removeQuarterly(idx)} style={{
+              width: 22, height: 22, borderRadius: 6, border: 'none',
+              background: 'transparent', color: t.fgFaint, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 15, flexShrink: 0,
+            }}>
+              ×
+            </button>
+          </div>
+        ))}
+        {addRowBtn(addQuarterly, goals.quarterly.length >= 3)}
+      </div>
+
+      {/* Divider */}
+      <div style={{ height: 1, background: t.divider, marginBottom: 14 }} />
+
+      {/* ESTA SEMANA */}
+      <div>
+        <div style={sectionLabel}>Esta semana</div>
+        {goals.weekly.map((item, idx) => (
+          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <button
+              onClick={() => toggleWeeklyDone(idx)}
+              style={{
+                width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                border: `2px solid ${item.done ? t.accent : t.border}`,
+                background: item.done ? t.accent : 'transparent',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              {item.done && (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M1.5 5L4 7.5L8.5 2.5" stroke="#0A0908" strokeWidth="1.8"
+                    strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </button>
+            <input
+              value={item.text}
+              onChange={e => setWeeklyText(idx, e.target.value)}
+              placeholder={`Acción semanal ${idx + 1}…`}
+              style={{
+                flex: 1, padding: '9px 11px', borderRadius: 10,
+                border: `1px solid ${t.border}`,
+                background: t.bg, color: item.done ? t.fgFaint : t.fg,
+                fontFamily: t.fonts.body, fontSize: 13, outline: 'none',
+                textDecoration: item.done ? 'line-through' : 'none',
+                opacity: item.done ? 0.6 : 1,
+              }}
+            />
+            <button onClick={() => removeWeekly(idx)} style={{
+              width: 22, height: 22, borderRadius: 6, border: 'none',
+              background: 'transparent', color: t.fgFaint, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 15, flexShrink: 0,
+            }}>
+              ×
+            </button>
+          </div>
+        ))}
+        {addRowBtn(addWeekly, goals.weekly.length >= 3)}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
@@ -519,6 +999,21 @@ export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
         {/* ── Áreas de enfoque ── */}
         <div style={{ marginTop: 4 }}>
           <FocusAreasCard t={t} />
+        </div>
+
+        {/* ── Equipo ── */}
+        <div style={{ marginTop: 4 }}>
+          <EquipmentCard t={t} />
+        </div>
+
+        {/* ── Movimientos ── */}
+        <div style={{ marginTop: 4 }}>
+          <MovementsCard t={t} />
+        </div>
+
+        {/* ── Metas ── */}
+        <div style={{ marginTop: 4 }}>
+          <GoalsCard t={t} />
         </div>
 
         {/* ── Sign out ── */}

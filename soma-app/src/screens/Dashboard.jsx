@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   ScreenFrame, StatusBar, MenuButton, MonoLabel,
   SectionHead, Fab,
@@ -8,6 +9,7 @@ import {
   IconBalance, IconSleep, IconStreak,
 } from '../icons.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { supabase } from '../lib/supabase.js';
 
 // ─── 2×2 Widget ──────────────────────────────────────────────────────
 function Widget({ t, Icon, lab, main, sub, col, onClick }) {
@@ -61,7 +63,38 @@ function StreakBar({ t, filledDays = 0 }) {
 
 // ─── DashboardScreen ─────────────────────────────────────────────────
 export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
+
+  const [workoutCount, setWorkoutCount] = useState(null);
+  const [prCount,      setPrCount]      = useState(null);
+  const [weekStreak,   setWeekStreak]   = useState(0);
+  const [todayWod,     setTodayWod]     = useState(null);
+  const [habitsToday,  setHabitsToday]  = useState(0);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    const uid   = session.user.id;
+    const today = new Date().toISOString().slice(0, 10);
+    const now   = new Date();
+    const dow   = now.getDay();
+    const mon   = new Date(now);
+    mon.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+    const weekStart = mon.toISOString().slice(0, 10);
+
+    Promise.all([
+      supabase.from('workouts').select('*', { count: 'exact', head: true }).eq('user_id', uid),
+      supabase.from('prs').select('*', { count: 'exact', head: true }).eq('user_id', uid),
+      supabase.from('workouts').select('date').eq('user_id', uid).gte('date', weekStart).lte('date', today),
+      supabase.from('workouts').select('*').eq('user_id', uid).eq('date', today).maybeSingle(),
+      supabase.from('daily_log').select('habit_ids').eq('user_id', uid).eq('date', today).maybeSingle(),
+    ]).then(([w, p, ww, tw, dl]) => {
+      setWorkoutCount(w.count ?? 0);
+      setPrCount(p.count ?? 0);
+      setWeekStreak((ww.data || []).length);
+      setTodayWod(tw.data || null);
+      setHabitsToday((dl.data?.habit_ids || []).length);
+    });
+  }, [session?.user?.id]);
 
   const displayName = profile?.name || 'Atleta';
   const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -72,10 +105,10 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
   });
 
   const widgets = [
-    { Icon: IconDumbbellSmall, lab: 'WOD HOY',  main: 'Sin WOD',   sub: 'Sin WOD programado',  col: t.pillar.train,   go: 'train' },
-    { Icon: IconProtein,       lab: 'MACROS',    main: '—',          sub: 'proteína · —',         col: t.pillar.eat,     go: 'eat'   },
-    { Icon: IconBalance,       lab: 'NIVEL',     main: 'L01',        sub: 'The Spark',            col: t.pillar.records, go: 'level' },
-    { Icon: IconSleep,         lab: 'SUEÑO',     main: '—',          sub: '— eficiencia',         col: t.fg,             go: null    },
+    { Icon: IconDumbbellSmall, lab: 'ENTRENO HOY', main: todayWod?.name || 'Sin WOD',   sub: todayWod?.wod_type || 'Toca para registrar', col: t.pillar.train,   go: 'train' },
+    { Icon: IconProtein,       lab: 'NUTRICIÓN',   main: '—',                            sub: 'Registra comidas',                           col: t.pillar.eat,     go: 'eat'   },
+    { Icon: IconBalance,       lab: 'NIVEL',       main: 'L01',                          sub: 'The Spark',                                  col: t.pillar.records, go: 'level' },
+    { Icon: IconSleep,         lab: 'HÁBITOS',     main: habitsToday > 0 ? `${habitsToday}` : '—', sub: habitsToday > 0 ? `completados hoy` : 'Ve a Bitácora', col: t.fg, go: 'journal' },
   ];
 
   return (
@@ -151,18 +184,36 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
           ))}
         </div>
 
+        {/* ── Stats chips ── */}
+        <div style={{ margin: '14px 20px 0', display: 'flex', gap: 8 }}>
+          {[
+            { lab: 'ENTRENOS', val: workoutCount === null ? '—' : String(workoutCount), col: t.pillar.train },
+            { lab: 'PRS',      val: prCount      === null ? '—' : String(prCount),      col: t.pillar.records },
+          ].map(s => (
+            <div key={s.lab} style={{ flex: 1, background: t.surface, border: `1px solid ${t.divider}`,
+              borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 3, height: 24, background: s.col, borderRadius: 2, flexShrink: 0 }}/>
+              <div>
+                <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22,
+                  letterSpacing: '-0.035em', color: t.fg }}>{s.val}</div>
+                <MonoLabel t={t}>{s.lab}</MonoLabel>
+              </div>
+            </div>
+          ))}
+        </div>
+
         {/* ── Streak strip ── */}
         <div style={{ margin: '14px 20px 0', background: t.surface,
           border: `1px solid ${t.divider}`, borderRadius: 14, padding: '14px 14px 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <IconStreak size={15} stroke={2} color={t.accent}/>
-              <MonoLabel t={t}>committed · 0 días</MonoLabel>
+              <MonoLabel t={t}>esta semana · {weekStreak} día{weekStreak !== 1 ? 's' : ''}</MonoLabel>
             </div>
             <span style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 11,
-              color: t.accent }}>0/7</span>
+              color: t.accent }}>{weekStreak}/7</span>
           </div>
-          <StreakBar t={t} filledDays={0}/>
+          <StreakBar t={t} filledDays={weekStreak}/>
         </div>
 
         {/* ── F5 bottom watermark ── */}

@@ -68,90 +68,120 @@ function wodTypeLabel(wt) {
   return WOD_TYPES.find(w => w.value === wt)?.label || wt || '';
 }
 
-// ─── Week strip calendar ───────────────────────────────────────────────
+// ─── Three-week stacked calendar ───────────────────────────────────────
 
-function weekLabel(offset) {
-  if (offset === 0) return 'Esta semana';
-  if (offset === -1) return 'Semana pasada';
-  if (offset === 1) return 'Próxima semana';
-  return offset < 0 ? `Hace ${-offset} semanas` : `En ${offset} semanas`;
-}
+const WEEK_ROWS = [
+  { offset: -1, label: '↑ anterior' },
+  { offset:  0, label: 'esta semana' },
+  { offset:  1, label: '↓ próxima' },
+];
 
-function WeekStrip({ t, workoutDates, offset, onPrev, onNext }) {
-  const days = getWeekDays(offset);
+function ThreeWeekCalendar({ t, workoutDates }) {
   const today = todayIso();
-  const datesSet = new Set(workoutDates);
-
-  const arrowBtn = {
-    background: 'transparent', border: 'none', cursor: 'pointer',
-    color: t.fgMuted, fontSize: 18, padding: '0 4px', lineHeight: 1,
-    display: 'flex', alignItems: 'center',
-  };
 
   return (
     <div style={{
-      margin: '14px 20px 0', padding: '12px 12px 14px',
-      background: t.surface, border: `1px solid ${t.divider}`, borderRadius: 18,
+      background: t.surface,
+      border: `1px solid ${t.divider}`,
+      borderRadius: 18,
+      margin: '14px 20px 0',
+      padding: '14px 12px',
     }}>
-      {/* Week nav header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 10,
-      }}>
-        <button style={arrowBtn} onClick={onPrev}>‹</button>
-        <span style={{
-          fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700,
-          letterSpacing: '0.12em', textTransform: 'uppercase', color: t.fgMuted,
-        }}>
-          {weekLabel(offset)}
-        </span>
-        <button style={arrowBtn} onClick={onNext}>›</button>
-      </div>
+      {WEEK_ROWS.map(({ offset, label }) => {
+        const days = getWeekDays(offset);
+        const isCurrent = offset === 0;
+        const isPastOrNext = !isCurrent;
 
-      {/* Day columns */}
-      <div style={{ display: 'flex', gap: 6 }}>
-        {days.map((d, i) => {
-          const iso = isoDate(d);
-          const isToday = iso === today;
-          const hasWorkout = datesSet.has(iso);
-
-          return (
-            <div key={iso} style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', gap: 6,
+        return (
+          <div
+            key={offset}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              paddingTop: isCurrent ? 10 : 6,
+              paddingBottom: isCurrent ? 10 : 6,
+              borderLeft: isCurrent ? `3px solid ${t.accent}` : '3px solid transparent',
+              paddingLeft: isCurrent ? 8 : 8,
+              opacity: isPastOrNext ? 0.7 : 1,
+              marginBottom: offset === -1 ? 4 : offset === 0 ? 4 : 0,
+            }}
+          >
+            {/* Row label */}
+            <div style={{
+              width: 52,
+              flexShrink: 0,
+              fontFamily: t.fonts.mono,
+              fontSize: 8,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              color: isCurrent ? t.accent : t.fgFaint,
+              lineHeight: 1.2,
+              textAlign: 'right',
             }}>
-              <span style={{
-                fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
-                letterSpacing: '0.1em', textTransform: 'uppercase',
-                color: isToday ? t.pillar.train : t.fgMuted,
-              }}>
-                {DAY_LABELS[i]}
-              </span>
-
-              <div style={{
-                width: 28, height: 28, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: isToday ? t.pillar.train : 'transparent',
-                border: isToday ? 'none' : `1.5px solid ${t.divider}`,
-              }}>
-                <span style={{
-                  fontFamily: t.fonts.body, fontWeight: isToday ? 700 : 500,
-                  fontSize: 12,
-                  color: isToday ? '#0A0908' : t.fg,
-                }}>
-                  {d.getDate()}
-                </span>
-              </div>
-
-              <div style={{
-                width: 6, height: 6, borderRadius: '50%',
-                background: hasWorkout ? t.pillar.train : 'transparent',
-                border: hasWorkout ? 'none' : `1.5px solid ${t.fgFaint}`,
-              }}/>
+              {label}
             </div>
-          );
-        })}
-      </div>
+
+            {/* Day columns */}
+            <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+              {days.map((d, i) => {
+                const iso = isoDate(d);
+                const isToday = iso === today;
+                const hasWorkout = workoutDates.has(iso);
+
+                return (
+                  <div key={iso} style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}>
+                    <span style={{
+                      fontFamily: t.fonts.mono,
+                      fontSize: isCurrent ? 9 : 8,
+                      fontWeight: 700,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: isToday ? t.accent : t.fgMuted,
+                    }}>
+                      {DAY_LABELS[i]}
+                    </span>
+
+                    <div style={{
+                      width: isCurrent ? 26 : 22,
+                      height: isCurrent ? 26 : 22,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: isToday ? t.accent : 'transparent',
+                      border: isToday ? 'none' : `1.5px solid ${t.divider}`,
+                    }}>
+                      <span style={{
+                        fontFamily: t.fonts.body,
+                        fontWeight: isToday ? 700 : 500,
+                        fontSize: isCurrent ? 11 : 10,
+                        color: isToday ? '#0A0908' : t.fg,
+                      }}>
+                        {d.getDate()}
+                      </span>
+                    </div>
+
+                    <div style={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: '50%',
+                      background: hasWorkout ? t.pillar.train : 'transparent',
+                      border: hasWorkout ? 'none' : `1.5px solid ${t.fgFaint}`,
+                    }}/>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -461,11 +491,9 @@ function WorkoutCard({ t, workout }) {
 
 export function TrainScreen({ t, onNav, onMenu, onPlus }) {
   const { session } = useAuth();
-  const [workouts, setWorkouts]     = useState([]);
-  const [allWorkouts, setAllWorkouts] = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [showForm, setShowForm]     = useState(false);
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [workouts, setWorkouts] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [showForm, setShowForm] = useState(false);
 
   const loadWorkouts = useCallback(async () => {
     if (!session?.user) return;
@@ -476,21 +504,14 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
       .eq('user_id', session.user.id)
       .order('date', { ascending: false })
       .limit(50);
-    setAllWorkouts(data || []);
     setWorkouts(data || []);
     setLoading(false);
   }, [session]);
 
   useEffect(() => { loadWorkouts(); }, [loadWorkouts]);
 
-  const weekDays    = getWeekDays(weekOffset);
-  const weekStart   = isoDate(weekDays[0]);
-  const weekEnd     = isoDate(weekDays[6]);
-  const today       = todayIso();
-
-  const weekDates     = allWorkouts.map(w => w.date).filter(d => d >= weekStart && d <= weekEnd);
-  const todayWorkout  = allWorkouts.find(w => w.date === today) || null;
-  const historyList   = allWorkouts;
+  const today        = todayIso();
+  const todayWorkout = workouts.find(w => w.date === today) || null;
 
   function handleSaved() {
     setShowForm(false);
@@ -510,13 +531,10 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
 
       <div style={{ height: 'calc(100% - 56px)', overflowY: 'auto', paddingBottom: 100 }}>
 
-        {/* ── Week strip ── */}
-        <WeekStrip
+        {/* ── Three-week calendar ── */}
+        <ThreeWeekCalendar
           t={t}
-          workoutDates={weekDates}
-          offset={weekOffset}
-          onPrev={() => setWeekOffset(o => o - 1)}
-          onNext={() => setWeekOffset(o => o + 1)}
+          workoutDates={new Set(workouts.map(w => w.date))}
         />
 
         {/* ── Today ── */}
@@ -556,7 +574,7 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
           }}>
             Cargando…
           </div>
-        ) : historyList.length === 0 ? (
+        ) : workouts.length === 0 ? (
           <div style={{
             padding: '28px 20px', textAlign: 'center',
             fontFamily: t.fonts.body, fontSize: 13, color: t.fgMuted,
@@ -565,7 +583,7 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
           </div>
         ) : (
           <div style={{ marginTop: 4 }}>
-            {historyList.map(w => (
+            {workouts.map(w => (
               <WorkoutCard key={w.id} t={t} workout={w}/>
             ))}
           </div>
