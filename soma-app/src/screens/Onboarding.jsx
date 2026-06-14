@@ -417,7 +417,7 @@ function Step5({ t, name, saving, saveError, onEnter }) {
           }}>{saveError}</div>
         )}
         <PrimaryBtn t={t} onClick={onEnter} disabled={saving}>
-          {saving ? 'Guardando...' : 'Enter SOMA →'}
+          {saving ? 'Guardando...' : 'Entrar a SOMA →'}
         </PrimaryBtn>
       </div>
     </div>
@@ -485,14 +485,13 @@ export function OnboardingScreen({ t, onNav, onMenu, onPlus }) {
       });
 
       if (error) {
-        console.error('saveProfile error:', error);
-        setSaveError(error.message || 'Error al guardar. Intenta de nuevo.');
+        const detail = [error.message, error.hint, error.details, error.code]
+          .filter(Boolean).join(' | ');
+        setSaveError(detail || `Error desconocido: ${JSON.stringify(error)}`);
         setSaving(false);
       }
-      // On success, AuthContext updates profile → App.jsx exits onboarding automatically
     } catch (err) {
-      console.error('handleEnter exception:', err);
-      setSaveError(err.message || 'Error inesperado. Intenta de nuevo.');
+      setSaveError(`Excepción: ${err.message}`);
       setSaving(false);
     }
   }
