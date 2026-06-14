@@ -1,69 +1,472 @@
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import {
-  ScreenFrame, StatusBar, PillarHeader, PillarTag,
+  ScreenFrame, StatusBar, PillarHeader,
   MonoLabel, SectionHead, Fab,
 } from '../chrome.jsx';
-import { F5 } from '../marks.jsx';
-import {
-  IconBolt, IconPlus, IconTimer, IconMic, IconDumbbellSmall,
-  IconChevronRight,
-} from '../icons.jsx';
 
-// ─── Pillar color dot tag ─────────────────────────────────────────────
-function TagDot({ color }) {
-  return (
-    <div style={{ width: 8, height: 8, borderRadius: '50%',
-      background: color, flexShrink: 0 }}/>
-  );
+// ─── Helpers ──────────────────────────────────────────────────────────
+
+function getWeekDays() {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=Sun
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
 }
 
-// ─── Single next-WOD row ─────────────────────────────────────────────
-function WodRow({ t, tag, name, sub }) {
-  const colMap = {
-    train:   t.pillar.train,
-    eat:     t.pillar.eat,
-    records: t.pillar.records,
-  };
-  const col = colMap[tag] || t.fg;
+const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+function isoDate(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function todayIso() {
+  return isoDate(new Date());
+}
+
+const WOD_TYPES = [
+  { value: 'strength', label: 'Fuerza' },
+  { value: 'amrap',    label: 'AMRAP' },
+  { value: 'emom',     label: 'EMOM' },
+  { value: 'fortime',  label: 'For Time' },
+  { value: 'tabata',   label: 'Tabata' },
+  { value: 'custom',   label: 'Otro' },
+];
+
+const SCORE_UNITS = [
+  { value: 'time',   label: 'min:seg' },
+  { value: 'reps',   label: 'reps' },
+  { value: 'load',   label: 'kg' },
+  { value: 'rounds', label: 'rondas' },
+];
+
+function formatScore(value, unit) {
+  if (value == null) return '';
+  if (unit === 'time') {
+    const total = Math.round(value);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+  const unitLabel = SCORE_UNITS.find(u => u.value === unit)?.label || unit;
+  return `${value} ${unitLabel}`;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
+}
+
+function wodTypeLabel(wt) {
+  return WOD_TYPES.find(w => w.value === wt)?.label || wt || '';
+}
+
+// ─── Week strip calendar ───────────────────────────────────────────────
+
+function WeekStrip({ t, workoutDates }) {
+  const days = getWeekDays();
+  const today = todayIso();
+  const datesSet = new Set(workoutDates);
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12,
-      padding: '11px 20px', borderBottom: `1px solid ${t.divider}` }}>
-      <TagDot color={col}/>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13.5,
-          color: t.fg }}>{name}</div>
-        <div style={{ fontFamily: t.fonts.body, fontSize: 11, color: t.fgMuted,
-          marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {sub}
-        </div>
-      </div>
-      <IconChevronRight size={14} stroke={2} color={t.fgFaint}/>
+    <div style={{
+      display: 'flex', gap: 6, margin: '14px 20px 0',
+      padding: '14px 16px', background: t.surface,
+      border: `1px solid ${t.divider}`, borderRadius: 18,
+    }}>
+      {days.map((d, i) => {
+        const iso = isoDate(d);
+        const isToday = iso === today;
+        const hasWorkout = datesSet.has(iso);
+
+        return (
+          <div key={iso} style={{
+            flex: 1, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', gap: 6,
+          }}>
+            {/* Day letter */}
+            <span style={{
+              fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              color: isToday ? t.pillar.train : t.fgMuted,
+            }}>
+              {DAY_LABELS[i]}
+            </span>
+
+            {/* Day number */}
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: isToday ? t.pillar.train : 'transparent',
+              border: isToday ? 'none' : `1.5px solid ${t.divider}`,
+            }}>
+              <span style={{
+                fontFamily: t.fonts.body, fontWeight: isToday ? 700 : 500,
+                fontSize: 12,
+                color: isToday ? '#0A0908' : t.fg,
+              }}>
+                {d.getDate()}
+              </span>
+            </div>
+
+            {/* Workout dot */}
+            <div style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: hasWorkout ? t.pillar.train : 'transparent',
+              border: hasWorkout ? 'none' : `1.5px solid ${t.fgFaint}`,
+            }}/>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// ─── Quick capture tile ───────────────────────────────────────────────
-function CaptureTile({ t, Icon, lab, primary, onClick }) {
+// ─── Today's workout card ──────────────────────────────────────────────
+
+function TodayCard({ t, workout, onPlus }) {
+  if (!workout) {
+    return (
+      <div style={{
+        margin: '12px 20px 0', padding: '20px 18px',
+        background: t.surface, border: `1px solid ${t.divider}`,
+        borderRadius: 18, textAlign: 'center',
+      }}>
+        <div style={{
+          fontFamily: t.fonts.body, fontSize: 13.5, color: t.fgMuted,
+          marginBottom: 14,
+        }}>
+          Sin entreno registrado hoy
+        </div>
+        <button onClick={onPlus} style={{
+          background: t.pillar.train, color: '#0A0908',
+          border: 'none', borderRadius: 12, padding: '12px 24px',
+          fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14,
+          cursor: 'pointer', letterSpacing: '-0.01em',
+        }}>
+          Registrar entreno
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <button onClick={onClick} style={{
-      background: primary ? t.pillar.train : t.surface,
-      border: primary ? 'none' : `1px solid ${t.divider}`,
-      borderRadius: 14, padding: '16px 10px',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-      cursor: 'pointer', fontFamily: 'inherit',
-      color: primary ? '#0A0908' : t.fg, flex: 1,
+    <div style={{
+      margin: '12px 20px 0', padding: '16px 18px',
+      background: t.pillar.train + '18',
+      border: `1.5px solid ${t.pillar.train}`,
+      borderRadius: 18,
     }}>
-      <Icon size={20} stroke={1.9} color={primary ? '#0A0908' : t.pillar.train}/>
-      <span style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
-        letterSpacing: '0.16em', textTransform: 'uppercase',
-        color: primary ? '#0A090888' : t.fgMuted }}>
-        {lab}
-      </span>
-    </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <div style={{
+          width: 7, height: 7, borderRadius: '50%',
+          background: t.pillar.train, flexShrink: 0,
+        }}/>
+        <MonoLabel t={t} color={t.pillar.train}>HOY</MonoLabel>
+      </div>
+      <div style={{
+        fontFamily: t.fonts.display, fontWeight: 800, fontSize: 20,
+        letterSpacing: '-0.03em', color: t.fg, marginBottom: 4,
+      }}>
+        {workout.name || 'Entreno'}
+      </div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {workout.wod_type && (
+          <span style={{
+            fontFamily: t.fonts.mono, fontSize: 10, fontWeight: 700,
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            color: t.pillar.train,
+          }}>
+            {wodTypeLabel(workout.wod_type)}
+          </span>
+        )}
+        {workout.score_value != null && (
+          <span style={{
+            fontFamily: t.fonts.mono, fontSize: 10, color: t.fg,
+            letterSpacing: '0.06em',
+          }}>
+            {formatScore(workout.score_value, workout.score_unit)}
+          </span>
+        )}
+        {workout.rpe && (
+          <span style={{
+            fontFamily: t.fonts.mono, fontSize: 10, color: t.fgMuted,
+            letterSpacing: '0.06em',
+          }}>
+            RPE {workout.rpe}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Quick-log form ────────────────────────────────────────────────────
+
+function LogForm({ t, onSaved }) {
+  const { session } = useAuth();
+  const [name, setName]       = useState('');
+  const [wodType, setWodType] = useState('');
+  const [score, setScore]     = useState('');
+  const [unit, setUnit]       = useState('time');
+  const [rpe, setRpe]         = useState('');
+  const [notes, setNotes]     = useState('');
+  const [saving, setSaving]   = useState(false);
+
+  const inputStyle = {
+    width: '100%', background: t.bg, border: `1px solid ${t.divider}`,
+    borderRadius: 10, padding: '10px 12px', color: t.fg,
+    fontFamily: t.fonts.body, fontSize: 14, outline: 'none',
+    boxSizing: 'border-box',
+  };
+
+  async function handleSave() {
+    if (!session?.user) return;
+    setSaving(true);
+    await supabase.from('workouts').insert({
+      user_id: session.user.id,
+      date: todayIso(),
+      name: name || null,
+      wod_type: wodType || null,
+      score_value: parseFloat(score) || null,
+      score_unit: unit,
+      rpe: parseInt(rpe) || null,
+      notes: notes || null,
+    });
+    setSaving(false);
+    setName(''); setWodType(''); setScore(''); setRpe(''); setNotes('');
+    onSaved?.();
+  }
+
+  const pillBase = {
+    border: 'none', borderRadius: 8, padding: '7px 11px',
+    fontFamily: t.fonts.body, fontWeight: 600, fontSize: 12,
+    cursor: 'pointer', transition: 'background 0.15s',
+  };
+
+  return (
+    <div style={{
+      margin: '0 20px', padding: '16px',
+      background: t.surface, border: `1px solid ${t.divider}`,
+      borderRadius: 18, display: 'flex', flexDirection: 'column', gap: 12,
+    }}>
+
+      {/* Name */}
+      <input
+        placeholder="Nombre del entreno (opcional)"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        style={inputStyle}
+      />
+
+      {/* WOD type pills */}
+      <div>
+        <MonoLabel t={t} style={{ marginBottom: 6 }}>tipo</MonoLabel>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+          {WOD_TYPES.map(w => (
+            <button
+              key={w.value}
+              onClick={() => setWodType(wodType === w.value ? '' : w.value)}
+              style={{
+                ...pillBase,
+                background: wodType === w.value ? t.pillar.train : t.bg,
+                color: wodType === w.value ? '#0A0908' : t.fg,
+                border: `1px solid ${wodType === w.value ? t.pillar.train : t.divider}`,
+              }}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Score + unit */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          placeholder="Score"
+          value={score}
+          onChange={e => setScore(e.target.value)}
+          type="number"
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        <div style={{ display: 'flex', gap: 4 }}>
+          {SCORE_UNITS.map(u => (
+            <button
+              key={u.value}
+              onClick={() => setUnit(u.value)}
+              style={{
+                ...pillBase,
+                background: unit === u.value ? t.pillar.train : t.bg,
+                color: unit === u.value ? '#0A0908' : t.fg,
+                border: `1px solid ${unit === u.value ? t.pillar.train : t.divider}`,
+                padding: '7px 9px', fontSize: 11,
+              }}
+            >
+              {u.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* RPE pills */}
+      <div>
+        <MonoLabel t={t}>esfuerzo percibido (RPE)</MonoLabel>
+        <div style={{ display: 'flex', gap: 5, marginTop: 6 }}>
+          {[1,2,3,4,5,6,7,8,9,10].map(n => (
+            <button
+              key={n}
+              onClick={() => setRpe(rpe === String(n) ? '' : String(n))}
+              style={{
+                ...pillBase,
+                flex: 1, padding: '7px 2px', textAlign: 'center',
+                background: rpe === String(n) ? t.pillar.train : t.bg,
+                color: rpe === String(n) ? '#0A0908' : t.fgMuted,
+                border: `1px solid ${rpe === String(n) ? t.pillar.train : t.divider}`,
+                fontSize: 11,
+              }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Notes */}
+      <textarea
+        placeholder="Notas (opcional)"
+        value={notes}
+        onChange={e => setNotes(e.target.value)}
+        rows={2}
+        style={{ ...inputStyle, resize: 'none', lineHeight: 1.5 }}
+      />
+
+      {/* Save button */}
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        style={{
+          background: saving ? t.fgFaint : t.pillar.train,
+          color: '#0A0908', border: 'none', borderRadius: 12,
+          padding: '13px 0', fontFamily: t.fonts.body,
+          fontWeight: 700, fontSize: 14.5, cursor: saving ? 'default' : 'pointer',
+          letterSpacing: '-0.01em',
+        }}
+      >
+        {saving ? 'Guardando…' : 'Guardar entrenamiento'}
+      </button>
+    </div>
+  );
+}
+
+// ─── Past workout card ─────────────────────────────────────────────────
+
+function WorkoutCard({ t, workout }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '12px 20px', borderBottom: `1px solid ${t.divider}`,
+    }}>
+      {/* Date */}
+      <div style={{
+        minWidth: 36, textAlign: 'center',
+        fontFamily: t.fonts.mono, fontSize: 10, fontWeight: 700,
+        letterSpacing: '0.06em', color: t.fgMuted, lineHeight: 1.4,
+      }}>
+        {formatDate(workout.date)}
+      </div>
+
+      {/* dot */}
+      <div style={{
+        width: 6, height: 6, borderRadius: '50%',
+        background: t.pillar.train, flexShrink: 0,
+      }}/>
+
+      {/* Name + type */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13.5,
+          color: t.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {workout.name || 'Entreno'}
+        </div>
+        {workout.wod_type && (
+          <div style={{
+            fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700,
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            color: t.pillar.train, marginTop: 2,
+          }}>
+            {wodTypeLabel(workout.wod_type)}
+          </div>
+        )}
+      </div>
+
+      {/* Score + RPE */}
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        {workout.score_value != null && (
+          <div style={{
+            fontFamily: t.fonts.mono, fontSize: 12, fontWeight: 700,
+            color: t.fg,
+          }}>
+            {formatScore(workout.score_value, workout.score_unit)}
+          </div>
+        )}
+        {workout.rpe && (
+          <div style={{
+            fontFamily: t.fonts.mono, fontSize: 9.5, color: t.fgMuted,
+            letterSpacing: '0.06em', marginTop: 1,
+          }}>
+            RPE {workout.rpe}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
 // ─── TrainScreen ─────────────────────────────────────────────────────
+
 export function TrainScreen({ t, onNav, onMenu, onPlus }) {
+  const { session } = useAuth();
+  const [workouts, setWorkouts]     = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [showForm, setShowForm]     = useState(false);
+
+  const loadWorkouts = useCallback(async () => {
+    if (!session?.user) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from('workouts')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('date', { ascending: false })
+      .limit(20);
+    setWorkouts(data || []);
+    setLoading(false);
+  }, [session]);
+
+  useEffect(() => { loadWorkouts(); }, [loadWorkouts]);
+
+  const weekDays    = getWeekDays();
+  const weekStart   = isoDate(weekDays[0]);
+  const weekEnd     = isoDate(weekDays[6]);
+  const today       = todayIso();
+
+  const workoutDates = workouts.map(w => w.date);
+  const thisWeekDates = workoutDates.filter(d => d >= weekStart && d <= weekEnd);
+  const todayWorkout  = workouts.find(w => w.date === today) || null;
+
+  function handleSaved() {
+    setShowForm(false);
+    loadWorkouts();
+  }
+
   return (
     <ScreenFrame t={t} accentColor={t.pillar.train}>
       <StatusBar t={t}/>
@@ -75,70 +478,62 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
         onMenu={onMenu}
       />
 
-      {/* ── Scrollable body ── */}
       <div style={{ height: 'calc(100% - 56px)', overflowY: 'auto', paddingBottom: 100 }}>
 
-        {/* ── WOD Hero card ── */}
-        <div style={{ margin: '14px 20px 0', background: t.fg, color: t.bg,
-          borderRadius: 20, overflow: 'hidden', position: 'relative' }}>
+        {/* ── Week strip ── */}
+        <WeekStrip t={t} workoutDates={thisWeekDates}/>
 
-          {/* F5 watermark */}
-          <div style={{ position: 'absolute', right: -10, bottom: -10, width: 130, height: 130,
-            opacity: 0.08, pointerEvents: 'none' }}>
-            <svg viewBox="0 0 80 80" width="100%" height="100%">
-              <F5 color={t.bg} stroke={7}/>
-            </svg>
-          </div>
+        {/* ── Today ── */}
+        <SectionHead t={t}>hoy</SectionHead>
+        <TodayCard t={t} workout={todayWorkout} onPlus={onPlus}/>
 
-          <div style={{ padding: '32px 18px', textAlign: 'center' }}>
-            <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22,
-              letterSpacing: '-0.03em', lineHeight: 1.2, color: t.bg, marginBottom: 10 }}>
-              Sin WOD programado para hoy
-            </div>
-            <div style={{ fontFamily: t.fonts.body, fontSize: 13,
-              color: t.bg, opacity: 0.55 }}>
-              Usa + para registrar un entrenamiento.
-            </div>
-          </div>
-        </div>
-
-        {/* ── CTA buttons ── */}
-        <div style={{ margin: '12px 20px 0', display: 'flex', gap: 8 }}>
-          <button onClick={onPlus} style={{
-            flex: 1, background: t.pillar.train, color: '#0A0908',
-            border: 'none', borderRadius: 14, padding: '14px 0',
-            fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14.5,
-            cursor: 'pointer', letterSpacing: '-0.01em',
-          }}>
-            Empezar WOD
-          </button>
-          <button onClick={onPlus} style={{
-            width: 50, height: 50, background: t.surface,
-            border: `1px solid ${t.divider}`, borderRadius: 14,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', flexShrink: 0,
-          }}>
-            <IconPlus size={20} stroke={2} color={t.fg}/>
+        {/* ── Log form toggle ── */}
+        <div style={{ margin: '14px 20px 0' }}>
+          <button
+            onClick={() => setShowForm(v => !v)}
+            style={{
+              width: '100%', background: 'transparent',
+              border: `1.5px dashed ${showForm ? t.pillar.train : t.divider}`,
+              borderRadius: 14, padding: '11px 0',
+              fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13.5,
+              color: showForm ? t.pillar.train : t.fgMuted,
+              cursor: 'pointer', letterSpacing: '-0.01em',
+            }}
+          >
+            {showForm ? '✕ Cancelar' : 'Registrar entrenamiento +'}
           </button>
         </div>
 
-        {/* ── Quick capture ── */}
-        <SectionHead t={t}>capturar entreno</SectionHead>
-        <div style={{ margin: '10px 20px 0', display: 'flex', gap: 8 }}>
-          <CaptureTile t={t} Icon={IconDumbbellSmall} lab="Set"    primary={true}  onClick={onPlus}/>
-          <CaptureTile t={t} Icon={IconTimer}         lab="Tiempo" primary={false} onClick={onPlus}/>
-          <CaptureTile t={t} Icon={IconMic}           lab="Voz"    primary={false} onClick={onPlus}/>
-        </div>
-
-        {/* ── F5 watermark ── */}
-        <div style={{ position: 'relative', height: 70, marginTop: 10 }}>
-          <div style={{ position: 'absolute', right: 14, bottom: 0, width: 80, height: 80,
-            opacity: 0.04, pointerEvents: 'none' }}>
-            <svg viewBox="0 0 80 80" width="100%" height="100%">
-              <F5 color={t.fg} stroke={7}/>
-            </svg>
+        {showForm && (
+          <div style={{ marginTop: 12 }}>
+            <LogForm t={t} onSaved={handleSaved}/>
           </div>
-        </div>
+        )}
+
+        {/* ── History ── */}
+        <SectionHead t={t}>historial</SectionHead>
+
+        {loading ? (
+          <div style={{
+            padding: '28px 20px', textAlign: 'center',
+            fontFamily: t.fonts.body, fontSize: 13, color: t.fgMuted,
+          }}>
+            Cargando…
+          </div>
+        ) : workouts.length === 0 ? (
+          <div style={{
+            padding: '28px 20px', textAlign: 'center',
+            fontFamily: t.fonts.body, fontSize: 13, color: t.fgMuted,
+          }}>
+            Aún no hay entrenamientos registrados.
+          </div>
+        ) : (
+          <div style={{ marginTop: 4 }}>
+            {workouts.map(w => (
+              <WorkoutCard key={w.id} t={t} workout={w}/>
+            ))}
+          </div>
+        )}
 
       </div>
 
