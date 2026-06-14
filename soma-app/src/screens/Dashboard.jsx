@@ -7,29 +7,7 @@ import {
   IconRecovery, IconDumbbellSmall, IconProtein,
   IconBalance, IconSleep, IconStreak,
 } from '../icons.jsx';
-
-// ─── Recovery sparkline data ──────────────────────────────────────────
-const SPARKLINE = [62, 70, 68, 75, 72, 80, 87];
-
-function Sparkline({ color, height = 32, width = 120 }) {
-  const max = Math.max(...SPARKLINE);
-  const min = Math.min(...SPARKLINE) - 4;
-  const range = max - min || 1;
-  const step = width / (SPARKLINE.length - 1);
-  const pts = SPARKLINE.map((v, i) => {
-    const x = i * step;
-    const y = height - ((v - min) / range) * height;
-    return `${x},${y}`;
-  }).join(' ');
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow:'visible' }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="2"
-        strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
-      <circle cx={(SPARKLINE.length - 1) * step} cy={height - ((SPARKLINE[SPARKLINE.length - 1] - min) / range) * height}
-        r="3" fill={color}/>
-    </svg>
-  );
-}
+import { useAuth } from '../context/AuthContext.jsx';
 
 // ─── 2×2 Widget ──────────────────────────────────────────────────────
 function Widget({ t, Icon, lab, main, sub, col, onClick }) {
@@ -61,7 +39,7 @@ function Widget({ t, Icon, lab, main, sub, col, onClick }) {
 // ─── Streak day cell ─────────────────────────────────────────────────
 const DAYS = ['L','M','M','J','V','S','D'];
 
-function StreakBar({ t, filledDays = 4 }) {
+function StreakBar({ t, filledDays = 0 }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginTop: 10 }}>
       {DAYS.map((d, i) => (
@@ -83,11 +61,21 @@ function StreakBar({ t, filledDays = 4 }) {
 
 // ─── DashboardScreen ─────────────────────────────────────────────────
 export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
+  const { profile } = useAuth();
+
+  const displayName = profile?.name || 'Atleta';
+  const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+  const now = new Date();
+  const dateLabel = now.toLocaleDateString('es-ES', {
+    weekday: 'short', day: 'numeric', month: 'long',
+  });
+
   const widgets = [
-    { Icon: IconDumbbellSmall, lab: 'WOD HOY', main: 'Fran', sub: '21–15–9 · thr · pull', col: t.pillar.train, go: 'train' },
-    { Icon: IconProtein,       lab: 'MACROS',  main: '142g', sub: 'proteína · 86%',       col: t.pillar.eat,   go: 'eat'   },
-    { Icon: IconBalance,       lab: 'NIVEL',   main: 'Wellness', sub: 'L4 · 12 niveles',  col: t.pillar.records, go: 'level' },
-    { Icon: IconSleep,         lab: 'SUEÑO',   main: '7:24', sub: '92% eficiencia',       col: t.fg,           go: null    },
+    { Icon: IconDumbbellSmall, lab: 'WOD HOY',  main: 'Sin WOD',   sub: 'Sin WOD programado',  col: t.pillar.train,   go: 'train' },
+    { Icon: IconProtein,       lab: 'MACROS',    main: '—',          sub: 'proteína · —',         col: t.pillar.eat,     go: 'eat'   },
+    { Icon: IconBalance,       lab: 'NIVEL',     main: 'L01',        sub: 'The Spark',            col: t.pillar.records, go: 'level' },
+    { Icon: IconSleep,         lab: 'SUEÑO',     main: '—',          sub: '— eficiencia',         col: t.fg,             go: null    },
   ];
 
   return (
@@ -104,7 +92,7 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 11,
           color: t.onAccent, letterSpacing: '-0.02em', flexShrink: 0 }}>
-          EC
+          {initials}
         </div>
       </div>
 
@@ -113,11 +101,11 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
 
         {/* Greeting */}
         <div style={{ padding: '10px 20px 0' }}>
-          <MonoLabel t={t}>jue 15 · semana 3 · bloque fuerza</MonoLabel>
+          <MonoLabel t={t}>{dateLabel}</MonoLabel>
           <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 30,
             letterSpacing: '-0.04em', lineHeight: 1.1, color: t.fg, marginTop: 6,
             whiteSpace: 'pre-line' }}>
-            {'Buenas,\nEsteban.'}
+            {`Buenas,\n${displayName}.`}
           </div>
         </div>
 
@@ -143,20 +131,15 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 12 }}>
             <span style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 60,
               letterSpacing: '-0.06em', lineHeight: 1 }}>
-              87
+              —
             </span>
             <span style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 16,
               opacity: 0.55, marginBottom: 10 }}>/100</span>
-            <span style={{ fontFamily: t.fonts.body, fontSize: 11, opacity: 0.72,
-              marginBottom: 11, marginLeft: 4 }}>↑ +5 vs ayer</span>
           </div>
-
-          {/* Sparkline */}
-          <Sparkline color={t.onAccent} height={32} width={120}/>
 
           {/* Subtag */}
           <div style={{ marginTop: 8, fontFamily: t.fonts.body, fontSize: 11, opacity: 0.7 }}>
-            Listo para entrenar duro
+            Sin datos de recuperación aún
           </div>
         </div>
 
@@ -174,12 +157,12 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <IconStreak size={15} stroke={2} color={t.accent}/>
-              <MonoLabel t={t}>committed · 12 días</MonoLabel>
+              <MonoLabel t={t}>committed · 0 días</MonoLabel>
             </div>
             <span style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 11,
-              color: t.accent }}>3/7</span>
+              color: t.accent }}>0/7</span>
           </div>
-          <StreakBar t={t} filledDays={3}/>
+          <StreakBar t={t} filledDays={0}/>
         </div>
 
         {/* ── F5 bottom watermark ── */}

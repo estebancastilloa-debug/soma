@@ -1,21 +1,20 @@
 import { useAuth } from '../context/AuthContext.jsx';
 import {
-  StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab,
-  MenuButton, BackButton, PillarTag,
+  StatusBar, MonoLabel, SectionHead, ScreenFrame, Fab,
+  MenuButton,
 } from '../chrome.jsx';
 import {
-  IconDumbbellSmall, IconBolt, IconArrowUp, IconFlame, IconRecords,
-  IconBalance, IconStreak, IconHeart, IconCheck, IconChevronRight,
-  IconProfile, IconProtein, IconRecovery,
+  IconChevronRight,
 } from '../icons.jsx';
 import { F5, WordmarkWithMark } from '../marks.jsx';
-import { LEVELS, PHASES, LEVEL_RULES, LEVEL_PILLARS } from '../data/levels.js';
 
 export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
   const { profile, signOut } = useAuth();
   const displayName = profile?.name || 'Usuario';
   const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  const currentLevel = LEVELS.find(l => l.id === 4);
+
+  const weightLabel = profile?.weight_kg ? `${profile.weight_kg} kg` : '— kg';
+  const heightLabel = profile?.height_cm ? `${profile.height_cm} cm` : '— cm';
 
   return (
     <ScreenFrame t={t} accentColor={t.fg}>
@@ -50,11 +49,8 @@ export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
               letterSpacing: '-0.035em', color: t.fg,
             }}>{displayName}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-              <svg width="16" height="16" viewBox="0 0 80 80">
-                <currentLevel.Mark color={t.pillar.records} stroke={8} />
-              </svg>
               <span style={{ fontFamily: t.fonts.body, fontSize: 12, color: t.fgMuted }}>
-                L4 · {currentLevel.name} · CrossFit RX · 423d
+                L01 · The Spark
               </span>
             </div>
           </div>
@@ -68,9 +64,9 @@ export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
           border: '1px solid ' + t.divider, overflow: 'hidden',
         }}>
           {[
-            { lab: 'ENTRENOS', val: '287', col: t.pillar.train   },
-            { lab: 'STREAK',   val: '12d', col: t.secondary       },
-            { lab: 'PRS',      val: '34',  col: t.pillar.records  },
+            { lab: 'ENTRENOS', val: '0',   col: t.pillar.train   },
+            { lab: 'STREAK',   val: '0d',  col: t.secondary       },
+            { lab: 'PRS',      val: '0',   col: t.pillar.records  },
           ].map((s, i, arr) => (
             <div key={i} style={{
               padding: '14px 10px', textAlign: 'center',
@@ -91,13 +87,12 @@ export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
 
         <SectionHead t={t}>tu perfil</SectionHead>
         {[
-          { lab: 'Inventario de movimiento', sub: '47 movimientos'                   },
-          { lab: 'Equipo de gym',            sub: '12 implementos'                   },
-          { lab: 'Equipo de cocina',         sub: '8 utensilios'                     },
-          { lab: 'Suplementos',              sub: '4 activos'                         },
-          { lab: 'Lesiones',                 sub: 'ninguna activa'                    },
-          { lab: 'Ciclo menstrual',          sub: 'Fase folicular · día 8'            },
-          { lab: 'Biotipos & Psicología',    sub: 'ADHD · Energía masculina/femenina' },
+          { lab: 'Peso / Altura',              sub: `${weightLabel} · ${heightLabel}`  },
+          { lab: 'Inventario de movimiento',   sub: '0 movimientos'                    },
+          { lab: 'Equipo de gym',              sub: '0 implementos'                    },
+          { lab: 'Equipo de cocina',           sub: '0 utensilios'                     },
+          { lab: 'Suplementos',                sub: '0 activos'                        },
+          { lab: 'Lesiones',                   sub: 'ninguna activa'                   },
         ].map((m, i) => (
           <div key={i} style={{
             margin: '6px 20px 0', padding: '13px 14px', background: t.surface,

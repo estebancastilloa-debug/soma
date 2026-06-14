@@ -15,8 +15,8 @@ export function LevelScreen({ t, onNav, onMenu, onPlus }) {
   const [openRule, setOpenRule] = useState(null);
   const [openPillar, setOpenPillar] = useState(null);
 
-  const current = LEVELS.find(l => l.id === 4); // Wellness Ranger
-  const next = LEVELS.find(l => l.id === 5);
+  const current = LEVELS.find(l => l.id === 1); // L01
+  const next = LEVELS.find(l => l.id === 2);
   const pillar = t.pillar.records;
   const onPillar = '#0A0908';
 
@@ -40,7 +40,7 @@ export function LevelScreen({ t, onNav, onMenu, onPlus }) {
             </svg>
           </div>
           <div>
-            <MonoLabel t={t} color={onPillar + '88'}>l4 of 12 · wellness</MonoLabel>
+            <MonoLabel t={t} color={onPillar + '88'}>l1 of 12 · foundation</MonoLabel>
             <div style={{
               fontFamily: t.fonts.display, fontWeight: 800, fontSize: 24,
               letterSpacing: '-0.035em', lineHeight: 1.1, marginTop: 4,
@@ -61,11 +61,11 @@ export function LevelScreen({ t, onNav, onMenu, onPlus }) {
             }}>
               HASTA {next?.name?.toUpperCase()}
             </span>
-            <span style={{ fontFamily: t.fonts.mono, fontSize: 11, fontWeight: 700 }}>78%</span>
+            <span style={{ fontFamily: t.fonts.mono, fontSize: 11, fontWeight: 700 }}>0%</span>
           </div>
           <div style={{ height: 6, borderRadius: 3, background: '#0A090820' }}>
             <div style={{
-              width: '78%', height: '100%', background: onPillar, borderRadius: 3, opacity: 0.8,
+              width: '0%', height: '100%', background: onPillar, borderRadius: 3, opacity: 0.8,
             }} />
           </div>
         </div>
@@ -103,12 +103,12 @@ export function LevelScreen({ t, onNav, onMenu, onPlus }) {
         {/* Checklist "how to level up" */}
         <SectionHead t={t}>para subir al siguiente nivel</SectionHead>
         {[
-          { Icon: IconStreak,   lab: '8 more training days',      prog: '36/45',   done: false },
-          { Icon: IconFlame,    lab: 'Complete 1 more benchmark',  prog: '3/4',     done: false },
-          { Icon: IconBalance,  lab: 'Add cardio modality',        prog: '2/3 mod', done: false },
-          { Icon: IconRecovery, lab: 'Hit Green confidence',       prog: 'yellow',  done: false },
-          { Icon: IconProtein,  lab: 'Log macros 7 days in a row', prog: '7/7',     done: true  },
-          { Icon: IconHeart,    lab: 'Journal 5 days in a row',    prog: '5/5',     done: true  },
+          { Icon: IconStreak,   lab: 'Completa 45 sesiones',             prog: '0/45',  done: false },
+          { Icon: IconFlame,    lab: 'Completa 4 benchmarks',            prog: '0/4',   done: false },
+          { Icon: IconBalance,  lab: 'Registra 3 modalidades',           prog: '0/3',   done: false },
+          { Icon: IconRecovery, lab: 'Alcanza nivel Verde de confianza', prog: '',      done: false },
+          { Icon: IconProtein,  lab: 'Registra macros 7 días seguidos',  prog: '0/7',   done: false },
+          { Icon: IconHeart,    lab: 'Journaliza 5 días seguidos',        prog: '0/5',   done: false },
         ].map((c, i) => (
           <div key={i} style={{
             margin: '6px 20px 0', padding: '12px 14px', background: t.surface,
@@ -238,23 +238,23 @@ export function LevelScreen({ t, onNav, onMenu, onPlus }) {
               <div key={lv.id} style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '8px 0', borderBottom: '1px solid ' + t.divider,
-                opacity: lv.id < 4 ? 0.4 : lv.id === 4 ? 1 : 0.65,
+                opacity: lv.id < 1 ? 0.4 : lv.id === 1 ? 1 : 0.65,
               }}>
                 <svg width="28" height="28" viewBox="0 0 80 80">
-                  <lv.Mark color={lv.id === 4 ? pillar : t.fgFaint} stroke={7} />
+                  <lv.Mark color={lv.id === 1 ? pillar : t.fgFaint} stroke={7} />
                 </svg>
                 <div>
                   <div style={{
                     fontFamily: t.fonts.body,
-                    fontWeight: lv.id === 4 ? 700 : 500,
+                    fontWeight: lv.id === 1 ? 700 : 500,
                     fontSize: 12.5,
-                    color: lv.id === 4 ? t.fg : t.fgMuted,
+                    color: lv.id === 1 ? t.fg : t.fgMuted,
                   }}>L{lv.id} · {lv.name}</div>
                   <div style={{
                     fontFamily: t.fonts.body, fontSize: 11, color: t.fgFaint, marginTop: 1,
                   }}>{lv.goal}</div>
                 </div>
-                {lv.id === 4 && (
+                {lv.id === 1 && (
                   <div style={{
                     marginLeft: 'auto', fontFamily: t.fonts.mono,
                     fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em',

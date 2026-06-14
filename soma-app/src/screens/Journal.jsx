@@ -10,7 +10,7 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   const today = new Date().toISOString().slice(0, 10);
   const [tab, setTab] = useState('dia');
   const [mood, setMood] = useState(3);
-  const [habits, setHabits] = useState(['mobility', 'cold', 'meditate']);
+  const [habits, setHabits] = useState([]);
 
   useEffect(() => {
     if (!user) return;
@@ -45,7 +45,7 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   return (
     <ScreenFrame t={t} accentColor={t.fg}>
       <StatusBar t={t} />
-      <PillarHeader t={t} title="Bitácora" sub="Jueves 15 · mayo" onMenu={onMenu} />
+      <PillarHeader t={t} title="Bitácora" sub={new Date().toLocaleDateString('es', { weekday:'long', day:'numeric', month:'long' })} onMenu={onMenu} />
 
       {/* Tab bar */}
       <div style={{ padding: '12px 20px 0', display: 'flex', gap: 8 }}>
@@ -181,10 +181,10 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
             <SectionHead t={t}>señales corporales</SectionHead>
             <div style={{ margin: '10px 20px 0', display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
               {[
-                { lab: 'HRV',   val: '68ms',  delta: '+4', Icon: IconRecovery, col: t.semantic.ok },
-                { lab: 'RHR',   val: '52bpm', delta: '-2', Icon: IconHeart,    col: t.semantic.ok },
-                { lab: 'SUEÑO', val: '7:24',  delta: '—',  Icon: IconSleep,    col: t.tertiary   },
-                { lab: 'AGUA',  val: '5/8',   delta: '—',  Icon: IconWater,    col: t.tertiary   },
+                { lab: 'HRV',   Icon: IconRecovery, col: t.fgFaint },
+                { lab: 'RHR',   Icon: IconHeart,    col: t.fgFaint },
+                { lab: 'SUEÑO', Icon: IconSleep,    col: t.fgFaint },
+                { lab: 'AGUA',  Icon: IconWater,    col: t.fgFaint },
               ].map((s, i) => (
                 <div key={i} style={{
                   padding: '12px 14px', background: t.surface,
@@ -196,11 +196,13 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                   </div>
                   <div style={{
                     fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22,
-                    letterSpacing: '-0.025em', color: t.fg,
-                  }}>{s.val}</div>
-                  <div style={{ fontFamily: t.fonts.mono, fontSize: 10, color: s.col, marginTop: 2 }}>{s.delta}</div>
+                    letterSpacing: '-0.025em', color: t.fgFaint,
+                  }}>—</div>
                 </div>
               ))}
+            </div>
+            <div style={{ margin: '6px 20px 0', fontFamily: t.fonts.body, fontSize: 11.5, color: t.fgFaint }}>
+              Conecta un dispositivo de salud para ver datos reales.
             </div>
 
             {/* Quick capture */}
@@ -242,12 +244,12 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
               </div>
             </div>
             {[
-              { lab: 'ADHD',                sub: 'Atención · hiperactividad · sistemas',    val: 'Explorado',   col: t.secondary          },
-              { lab: 'Biotipos',             sub: 'Tu arquetipo metabólico y mental',        val: 'Sin datos',   col: t.tertiary           },
-              { lab: 'Heridas de infancia',  sub: 'Patrones inconscientes de protección',   val: 'En proceso',  col: t.semantic.mid       },
-              { lab: 'Energía M/F',          sub: 'Polaridad masculina y femenina',         val: 'Balanceado',  col: t.pillar.train       },
-              { lab: 'Locus de control',     sub: '¿Cuánto sientes que controlas tu vida?', val: 'Interno 72%', col: t.semantic.ok        },
-              { lab: 'Apego',                sub: 'Ansioso · evitativo · seguro',           val: 'Sin datos',   col: t.fgFaint            },
+              { lab: 'ADHD',                sub: 'Atención · hiperactividad · sistemas',    val: 'Sin explorar', col: t.fgFaint },
+              { lab: 'Biotipos',             sub: 'Tu arquetipo metabólico y mental',        val: 'Sin explorar', col: t.fgFaint },
+              { lab: 'Heridas de infancia',  sub: 'Patrones inconscientes de protección',   val: 'Sin explorar', col: t.fgFaint },
+              { lab: 'Energía M/F',          sub: 'Polaridad masculina y femenina',         val: 'Sin explorar', col: t.fgFaint },
+              { lab: 'Locus de control',     sub: '¿Cuánto sientes que controlas tu vida?', val: 'Sin explorar', col: t.fgFaint },
+              { lab: 'Apego',                sub: 'Ansioso · evitativo · seguro',           val: 'Sin explorar', col: t.fgFaint },
             ].map((f, i) => (
               <div key={i} style={{
                 margin: '8px 20px 0', padding: '14px 16px', background: t.surface,

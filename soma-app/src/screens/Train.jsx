@@ -8,20 +8,6 @@ import {
   IconChevronRight,
 } from '../icons.jsx';
 
-// ─── Next WODs data ───────────────────────────────────────────────────
-const NEXT_WODS = [
-  { tag: 'train',   name: 'Annie',    sub: '50–40–30–20–10 · DU · sit-up · for time' },
-  { tag: 'train',   name: 'DL + MU',  sub: 'Deadlift 3×5 @80% · 3 sets MU skill'    },
-  { tag: 'records', name: 'OHS 1RM',  sub: 'Overhead squat · test day'                },
-];
-
-// ─── Quick capture tiles ──────────────────────────────────────────────
-const CAPTURES = [
-  { Icon: IconDumbbellSmall, lab: 'Set',    primary: true },
-  { Icon: IconTimer,         lab: 'Tiempo', primary: false },
-  { Icon: IconMic,           lab: 'Voz',    primary: false },
-];
-
 // ─── Pillar color dot tag ─────────────────────────────────────────────
 function TagDot({ color }) {
   return (
@@ -84,7 +70,7 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
       <PillarHeader
         t={t}
         title="Entrena"
-        sub="Bloque 3 · semana 3 · día 4"
+        sub={new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })}
         pillarColor={t.pillar.train}
         onMenu={onMenu}
       />
@@ -104,44 +90,14 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
             </svg>
           </div>
 
-          <div style={{ padding: '16px 18px' }}>
-            {/* Top row: bolt + label + tag */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <IconBolt size={16} color={t.pillar.train} stroke={2}/>
-              <MonoLabel t={t} color={t.bg + 'AA'}>wod · benchmark</MonoLabel>
-              <div style={{ marginLeft: 'auto' }}>
-                <PillarTag t={t} pillar="train">MGW</PillarTag>
-              </div>
+          <div style={{ padding: '32px 18px', textAlign: 'center' }}>
+            <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22,
+              letterSpacing: '-0.03em', lineHeight: 1.2, color: t.bg, marginBottom: 10 }}>
+              Sin WOD programado para hoy
             </div>
-
-            {/* WOD name */}
-            <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 46,
-              letterSpacing: '-0.05em', lineHeight: 1, color: t.bg, marginBottom: 8 }}>
-              Fran
-            </div>
-
-            {/* Rep scheme */}
-            <div style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 26,
-              letterSpacing: '-0.03em', color: t.pillar.train, marginBottom: 8 }}>
-              21 — 15 — 9
-            </div>
-
-            {/* Movements */}
-            <div style={{ fontFamily: t.fonts.body, fontSize: 13, color: t.bg,
-              opacity: 0.68, marginBottom: 16 }}>
-              Thruster 95/65 lb · Pull-up · For time
-            </div>
-
-            {/* PR divider row */}
-            <div style={{ borderTop: `1px solid ${t.bg}22`, paddingTop: 12,
-              display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontFamily: t.fonts.body, fontSize: 11, color: t.bg, opacity: 0.6 }}>
-                Último PR
-              </span>
-              <span style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 14,
-                color: t.pillar.train }}>5:42</span>
-              <span style={{ fontFamily: t.fonts.body, fontSize: 11, color: t.bg,
-                opacity: 0.5, marginLeft: 'auto' }}>hace 6 sem</span>
+            <div style={{ fontFamily: t.fonts.body, fontSize: 13,
+              color: t.bg, opacity: 0.55 }}>
+              Usa + para registrar un entrenamiento.
             </div>
           </div>
         </div>
@@ -166,20 +122,12 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
           </button>
         </div>
 
-        {/* ── Next WODs ── */}
-        <SectionHead t={t}>siguiente · viernes</SectionHead>
-        <div style={{ marginTop: 8, borderTop: `1px solid ${t.divider}` }}>
-          {NEXT_WODS.map((w) => (
-            <WodRow key={w.name} t={t} {...w}/>
-          ))}
-        </div>
-
         {/* ── Quick capture ── */}
         <SectionHead t={t}>capturar entreno</SectionHead>
         <div style={{ margin: '10px 20px 0', display: 'flex', gap: 8 }}>
-          {CAPTURES.map((c) => (
-            <CaptureTile key={c.lab} t={t} {...c} onClick={onPlus}/>
-          ))}
+          <CaptureTile t={t} Icon={IconDumbbellSmall} lab="Set"    primary={true}  onClick={onPlus}/>
+          <CaptureTile t={t} Icon={IconTimer}         lab="Tiempo" primary={false} onClick={onPlus}/>
+          <CaptureTile t={t} Icon={IconMic}           lab="Voz"    primary={false} onClick={onPlus}/>
         </div>
 
         {/* ── F5 watermark ── */}
