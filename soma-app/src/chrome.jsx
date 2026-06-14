@@ -10,17 +10,7 @@ import {
 
 // ─── Status bar ───────────────────────────────────────────────────
 export function StatusBar({ t }) {
-  return (
-    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-      padding:'14px 20px 0', color:t.fg, fontFamily:t.fonts.body, fontSize:12, fontWeight:600 }}>
-      <span style={{ fontFamily:t.fonts.mono, letterSpacing:'-0.02em' }}>9:41</span>
-      <span style={{ display:'flex', gap:6, alignItems:'center' }}>
-        <IconSignal size={14} stroke={1.6} color={t.fg}/>
-        <IconWifi size={14} stroke={1.6} color={t.fg}/>
-        <IconBattery size={20} stroke={1.6} color={t.fg}/>
-      </span>
-    </div>
-  );
+  return null; // OS shows its own status bar in production
 }
 
 // ─── Hamburger menu button ─────────────────────────────────────────
