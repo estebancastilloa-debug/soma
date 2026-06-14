@@ -15,11 +15,13 @@ function useDebounce(fn, delay) {
   }, [fn, delay]);
 }
 
-const LS_FOCUS     = 'soma_focus_areas';
-const LS_INJURY    = 'soma_injury_notes';
-const LS_EQUIPMENT = 'soma_equipment';
-const LS_MOVEMENTS = 'soma_movements';
-const LS_GOALS     = 'soma_goals';
+const LS_FOCUS          = 'soma_focus_areas';
+const LS_INJURY         = 'soma_injury_notes';
+const LS_EQUIPMENT      = 'soma_equipment';
+const LS_EQUIPMENT_CUST = 'soma_equipment_custom';
+const LS_MOVEMENTS      = 'soma_movements';
+const LS_SKILL_PRS      = 'soma_skill_prs';
+const LS_GOALS          = 'soma_goals';
 
 function loadFocus()  { try { return JSON.parse(localStorage.getItem(LS_FOCUS) || '[]'); } catch { return []; } }
 function saveFocus(v) { localStorage.setItem(LS_FOCUS, JSON.stringify(v)); }
@@ -29,6 +31,12 @@ function saveEquipment(v) { localStorage.setItem(LS_EQUIPMENT, JSON.stringify(v)
 
 function loadMovements()  { try { return JSON.parse(localStorage.getItem(LS_MOVEMENTS) || '[]'); } catch { return []; } }
 function saveMovements(v) { localStorage.setItem(LS_MOVEMENTS, JSON.stringify(v)); }
+
+function loadEquipCust()  { try { return JSON.parse(localStorage.getItem(LS_EQUIPMENT_CUST) || '[]'); } catch { return []; } }
+function saveEquipCust(v) { localStorage.setItem(LS_EQUIPMENT_CUST, JSON.stringify(v)); }
+
+function loadSkillPrs()  { try { return JSON.parse(localStorage.getItem(LS_SKILL_PRS) || '{}'); } catch { return {}; } }
+function saveSkillPrs(v) { localStorage.setItem(LS_SKILL_PRS, JSON.stringify(v)); }
 
 function loadGoals() {
   try {
@@ -461,11 +469,38 @@ const EQUIPMENT_GROUPS = [
   { group: 'ACCESORIOS',          items: ['Cajón pliométrico (Box)', 'Balón medicinal (Wall ball)', 'AbMat', 'GHD', 'Banda elástica', 'Foam roller'] },
 ];
 
+const EQUIPMENT_KB = {
+  'Barra olímpica':               { desc: 'Barra estándar de 20 kg (hombres) o 15 kg (mujeres). Esencial para levantamientos olímpicos y powerlifting.', moves: ['Snatch', 'Clean & Jerk', 'Back Squat', 'Deadlift', 'Bench Press', 'Strict Press', 'Thruster'] },
+  'Barra de peso ligero (15 kg)': { desc: 'Barra técnica de 15 kg. Ideal para aprender técnica olímpica o para atletas de menor masa corporal.', moves: ['Power Snatch', 'Power Clean', 'Hang Power Clean', 'Push Jerk', 'Overhead Squat'] },
+  'Mancuernas':                   { desc: 'Permite trabajo unilateral para corregir desbalances musculares. Alta versatilidad y rango de movimiento.', moves: ['DB Snatch', 'DB Clean', 'DB Thruster', 'Lunge', 'Row', 'Press', 'Curl'] },
+  'Kettlebell':                   { desc: 'El centro de masa desplazado desafía la estabilidad y el core. Excelente para fuerza funcional y acondicionamiento.', moves: ['KB Swing', 'KB Clean', 'KB Snatch', 'Turkish Get-Up', 'Goblet Squat', 'Farmer Carry'] },
+  'Discos / Bumper plates':       { desc: 'Discos de goma que permiten dejar caer la barra de forma segura. Necesarios para levantamientos olímpicos.', moves: ['Todos los levantamientos olímpicos', 'Deadlift', 'Plate Ground-to-Overhead'] },
+  'Chaleco con peso':             { desc: 'Añade carga externa a movimientos bodyweight. Varía de 5 a 20+ kg para progressión continua.', moves: ['Pull-up lastrado', 'Dip', 'Push-up', 'Running', 'Box Jump', 'Rope Climb'] },
+  'Barra de dominadas':           { desc: 'Elemento fundamental para trabajo de espalda y gymnastics. Permite kipping y butterfly además de estricto.', moves: ['Pull-up', 'Chest-to-bar', 'Muscle-up', 'Toes-to-bar', 'L-sit', 'Hanging knee raise'] },
+  'Anillas':                      { desc: 'Las anillas inestables activan más musculatura estabilizadora que barras fijas. Nivel de dificultad ajustable por altura.', moves: ['Ring Dip', 'Ring Muscle-up', 'Ring Row', 'Ring Push-up', 'False Grip', 'Skin the Cat'] },
+  'Paralelas (Parallettes)':      { desc: 'Barras bajas para gymnastics avanzado. Alivian presión en muñecas vs el piso.', moves: ['L-sit', 'V-sit', 'HSPU', 'Handstand', 'Pike Push-up', 'Planche progressions'] },
+  'Cuerda de escalar':            { desc: 'Desarrolla fuerza de agarre, bíceps y core. Variante legless (sin piernas) amplía el reto significativamente.', moves: ['Rope Climb', 'Legless Rope Climb', 'Rope Pull', 'Towel Pull-up'] },
+  'Remo (Concept2)':              { desc: 'Cardio de bajo impacto que trabaja todo el cuerpo 86% muscular. Métrica estándar en CrossFit: split de 500m.', moves: ['Row 500m', 'Row 2k', 'Row 5k', 'EMOM Row', 'Pyramid Row'] },
+  'Bici de asalto (Assault / Echo)': { desc: 'Cardio de alta intensidad con resistencia infinita. La resistencia aumenta exponencialmente con la velocidad.', moves: ['Echo Bike Calories', 'Assault Bike Sprint', 'AMRAP Cals', 'Tabata Bike'] },
+  'SkiErg':                       { desc: 'Simula esquí nórdico. Cardio de tren superior con mucho trabajo de lat, core y tracción.', moves: ['SkiErg 500m', 'SkiErg Calories', 'Double Ski + Burpee', 'EMOM Ski'] },
+  'Cuerda para saltar':           { desc: 'Herramienta de acondicionamiento cardiovascular y coordinación. Double-unders son estándar en CrossFit.', moves: ['Single Under', 'Double Under', 'Triple Under', 'Crossovers', 'DU Tabata'] },
+  'Cajón pliométrico (Box)':      { desc: 'Para saltos de potencia y step-ups de fuerza. Alturas estándar: 50/60/70 cm. Superficie de caída al usar para jump.', moves: ['Box Jump', 'Box Step-up', 'Box Step-over', 'Seated Box Jump', 'Broad Jump'] },
+  'Balón medicinal (Wall ball)':  { desc: 'Pelota lastrada de 9-14 kg para movimientos explosivos. El wall ball shot combina squat + press en un movimiento.', moves: ['Wall Ball Shot', 'Wall Ball Toss', 'MB Slam', 'Squat to Toss', 'MB Clean'] },
+  'AbMat':                        { desc: 'Almohadilla lumbar que aumenta el rango del abdominal y protege la espalda baja durante sit-ups.', moves: ['AbMat Sit-up', 'Butterfly Sit-up', 'V-up modificado', 'Hollow rock'] },
+  'GHD':                          { desc: 'Glute-Ham Developer. Desarrolla cadena posterior e isquiotibiales. Uso avanzado — progresar gradualmente.', moves: ['GHD Sit-up', 'Hip Extension', 'Back Extension', 'Reverse Hyper'] },
+  'Banda elástica':               { desc: 'Para asistencia en dominadas, activación de glúteos y trabajo de movilidad. Resistencia varía por grosor.', moves: ['Banded Pull-up', 'Banded Squat', 'Glute Activation', 'Face Pull', 'Banded Press'] },
+  'Foam roller':                  { desc: 'Automasaje miofascial para recuperación y movilidad articular. Usar pre y post entrenamiento.', moves: ['IT Band roll', 'Thoracic roll', 'Quad roll', 'Hip flexor release', 'Lat roll'] },
+};
+
 function EquipmentCard({ t }) {
   const [checked, setChecked] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem(LS_EQUIPMENT) || '[]')); }
     catch { return new Set(); }
   });
+  const [customItems, setCustomItems] = useState(() => loadEquipCust());
+  const [customInput, setCustomInput] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [infoItem, setInfoItem] = useState(null); // { name, kb }
 
   function toggle(name) {
     const next = new Set(checked);
@@ -474,7 +509,33 @@ function EquipmentCard({ t }) {
     localStorage.setItem(LS_EQUIPMENT, JSON.stringify([...next]));
   }
 
-  const total = EQUIPMENT_GROUPS.reduce((s, g) => s + g.items.length, 0);
+  function addCustom() {
+    const name = customInput.trim();
+    if (!name) return;
+    const next = [...customItems, name];
+    setCustomItems(next);
+    saveEquipCust(next);
+    // auto-check it
+    const nextChecked = new Set(checked);
+    nextChecked.add(name);
+    setChecked(nextChecked);
+    localStorage.setItem(LS_EQUIPMENT, JSON.stringify([...nextChecked]));
+    setCustomInput('');
+    setShowCustomInput(false);
+  }
+
+  function removeCustom(name) {
+    const next = customItems.filter(c => c !== name);
+    setCustomItems(next);
+    saveEquipCust(next);
+    const nextChecked = new Set(checked);
+    nextChecked.delete(name);
+    setChecked(nextChecked);
+    localStorage.setItem(LS_EQUIPMENT, JSON.stringify([...nextChecked]));
+  }
+
+  const predefinedTotal = EQUIPMENT_GROUPS.reduce((s, g) => s + g.items.length, 0);
+  const total = predefinedTotal + customItems.length;
 
   return (
     <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
@@ -493,30 +554,154 @@ function EquipmentCard({ t }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {items.map(item => {
               const on = checked.has(item);
+              const kb = EQUIPMENT_KB[item];
               return (
-                <button key={item} onClick={() => toggle(item)} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 10px', borderRadius: 10, border: 'none',
-                  background: on ? t.accent + '18' : 'transparent',
-                  cursor: 'pointer', textAlign: 'left', width: '100%',
-                }}>
-                  <div style={{
-                    width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                    background: on ? t.accent : 'transparent',
-                    border: `2px solid ${on ? t.accent : t.fgFaint}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button onClick={() => toggle(item)} style={{
+                    flex: 1, display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 10px', borderRadius: 10, border: 'none',
+                    background: on ? t.accent + '18' : 'transparent',
+                    cursor: 'pointer', textAlign: 'left',
                   }}>
-                    {on && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0A0908" strokeWidth="3" strokeLinecap="round"><polyline points="4,12 10,18 20,6"/></svg>}
-                  </div>
-                  <span style={{ fontFamily: t.fonts.body, fontSize: 13, color: on ? t.fg : t.fgMuted, fontWeight: on ? 600 : 400 }}>
-                    {item}
-                  </span>
-                </button>
+                    <div style={{
+                      width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                      background: on ? t.accent : 'transparent',
+                      border: `2px solid ${on ? t.accent : t.fgFaint}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {on && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0A0908" strokeWidth="3" strokeLinecap="round"><polyline points="4,12 10,18 20,6"/></svg>}
+                    </div>
+                    <span style={{ fontFamily: t.fonts.body, fontSize: 13, color: on ? t.fg : t.fgMuted, fontWeight: on ? 600 : 400 }}>
+                      {item}
+                    </span>
+                  </button>
+                  {kb && (
+                    <button onClick={() => setInfoItem({ name: item, kb })} style={{
+                      width: 24, height: 24, borderRadius: 6, border: 'none',
+                      background: 'transparent', cursor: 'pointer', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: t.fgFaint,
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
         </div>
       ))}
+
+      {/* Custom items */}
+      {customItems.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.fgFaint, marginBottom: 8 }}>
+            PERSONALIZADO
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {customItems.map(item => {
+              const on = checked.has(item);
+              return (
+                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button onClick={() => toggle(item)} style={{
+                    flex: 1, display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 10px', borderRadius: 10, border: 'none',
+                    background: on ? t.accent + '18' : 'transparent',
+                    cursor: 'pointer', textAlign: 'left',
+                  }}>
+                    <div style={{
+                      width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                      background: on ? t.accent : 'transparent',
+                      border: `2px solid ${on ? t.accent : t.fgFaint}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {on && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0A0908" strokeWidth="3" strokeLinecap="round"><polyline points="4,12 10,18 20,6"/></svg>}
+                    </div>
+                    <span style={{ fontFamily: t.fonts.body, fontSize: 13, color: on ? t.fg : t.fgMuted, fontWeight: on ? 600 : 400 }}>
+                      {item}
+                    </span>
+                  </button>
+                  <button onClick={() => removeCustom(item)} style={{
+                    width: 24, height: 24, borderRadius: 6, border: 'none',
+                    background: 'transparent', color: t.fgFaint, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0,
+                  }}>×</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Add custom */}
+      {showCustomInput ? (
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <input
+            value={customInput}
+            onChange={e => setCustomInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addCustom()}
+            placeholder="ej. Sled, GHD, Trap bar..."
+            autoFocus
+            style={{
+              flex: 1, padding: '9px 11px', borderRadius: 10, border: `1px solid ${t.border}`,
+              background: t.bg, color: t.fg, fontFamily: t.fonts.body, fontSize: 13, outline: 'none',
+            }}
+          />
+          <button onClick={addCustom} style={{
+            padding: '9px 14px', borderRadius: 10, border: 'none',
+            background: t.accent, color: '#0A0908', cursor: 'pointer',
+            fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13, flexShrink: 0,
+          }}>
+            Agregar
+          </button>
+          <button onClick={() => { setShowCustomInput(false); setCustomInput(''); }} style={{
+            padding: '9px 10px', borderRadius: 10, border: `1px solid ${t.divider}`,
+            background: 'transparent', color: t.fgMuted, cursor: 'pointer', flexShrink: 0,
+          }}>✕</button>
+        </div>
+      ) : (
+        <button onClick={() => setShowCustomInput(true)} style={{
+          marginTop: 8, width: '100%', padding: '8px', borderRadius: 10,
+          border: `1px dashed ${t.divider}`, background: 'transparent',
+          color: t.fgMuted, cursor: 'pointer',
+          fontFamily: t.fonts.body, fontSize: 12, fontWeight: 600,
+        }}>
+          + Agregar equipo personalizado
+        </button>
+      )}
+
+      {/* Equipment info popup */}
+      {infoItem && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end',
+        }} onClick={() => setInfoItem(null)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: '100%', background: t.bg, borderRadius: '20px 20px 0 0',
+            padding: '20px 20px 40px', maxHeight: '70vh', overflow: 'auto',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16, color: t.fg }}>{infoItem.name}</div>
+              <button onClick={() => setInfoItem(null)} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: t.surface, color: t.fg, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            </div>
+            <div style={{ fontFamily: t.fonts.body, fontSize: 13.5, color: t.fgMuted, lineHeight: 1.6, marginBottom: 14 }}>
+              {infoItem.kb.desc}
+            </div>
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: t.accent, textTransform: 'uppercase', marginBottom: 8 }}>
+              Movimientos posibles
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {infoItem.kb.moves.map(m => (
+                <div key={m} style={{ padding: '5px 10px', borderRadius: 8, background: t.surface, border: `1px solid ${t.divider}`, fontFamily: t.fonts.body, fontSize: 12, color: t.fg }}>
+                  {m}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -537,18 +722,47 @@ const SKILL_LEVELS = [
   { label: 'Avanzado',   color: '#C8FB5A' },
 ];
 
+const PR_REPS = [1, 2, 3, 5, 10];
+
 function SkillsCard({ t }) {
   const [skills, setSkills] = useState(() => {
     try { return JSON.parse(localStorage.getItem(LS_MOVEMENTS) || '{}'); }
     catch { return {}; }
   });
+  const [prs, setPrs] = useState(() => loadSkillPrs());
   const [activeGroup, setActiveGroup] = useState(SKILL_GROUPS[0].group);
+  const [prSkill, setPrSkill] = useState(null); // skill name whose PR sheet is open
+  const [prInputs, setPrInputs] = useState({}); // temp input values in the PR sheet
 
   function cycleLevel(skill) {
     const cur = skills[skill] || 0;
     const next = { ...skills, [skill]: (cur + 1) % 4 };
     setSkills(next);
     localStorage.setItem(LS_MOVEMENTS, JSON.stringify(next));
+  }
+
+  function openPrSheet(skill) {
+    const existing = prs[skill] || {};
+    const inputs = {};
+    PR_REPS.forEach(r => { inputs[r] = existing[r]?.value ?? ''; });
+    setPrInputs(inputs);
+    setPrSkill(skill);
+  }
+
+  function savePrs() {
+    const existing = prs[prSkill] || {};
+    const updated = { ...existing };
+    PR_REPS.forEach(r => {
+      const val = parseFloat(prInputs[r]);
+      if (!isNaN(val) && val > 0) {
+        const isNew = !existing[r] || val > existing[r].value;
+        updated[r] = { value: val, date: isNew ? new Date().toISOString().slice(0,10) : existing[r].date };
+      }
+    });
+    const nextPrs = { ...prs, [prSkill]: updated };
+    setPrs(nextPrs);
+    saveSkillPrs(nextPrs);
+    setPrSkill(null);
   }
 
   const group = SKILL_GROUPS.find(g => g.group === activeGroup);
@@ -563,7 +777,7 @@ function SkillsCard({ t }) {
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
         {SKILL_GROUPS.map(g => (
           <button key={g.group} onClick={() => setActiveGroup(g.group)} style={{
-            padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+            padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
             background: activeGroup === g.group ? g.col + '30' : t.s2,
             color: activeGroup === g.group ? g.col : t.fgMuted,
             fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700,
@@ -594,34 +808,107 @@ function SkillsCard({ t }) {
         {group?.skills.map(skill => {
           const level = skills[skill] || 0;
           const lv = SKILL_LEVELS[level];
+          const skillPrs = prs[skill] || {};
+          const bestPr = skillPrs[1]; // 1RM
           return (
-            <button key={skill} onClick={() => cycleLevel(skill)} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '9px 10px', borderRadius: 10, border: 'none',
-              background: level > 0 ? (group.col + '12') : 'transparent',
-              cursor: 'pointer', textAlign: 'left', width: '100%',
-            }}>
-              {/* 3-dot level */}
-              <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-                {[1,2,3].map(dot => (
-                  <div key={dot} style={{ width: 7, height: 7, borderRadius: '50%', background: dot <= level ? (lv.color || group.col) : t.s2 }}/>
-                ))}
-              </div>
-              <span style={{ flex: 1, fontFamily: t.fonts.body, fontSize: 13, color: level > 0 ? t.fg : t.fgMuted, fontWeight: level > 0 ? 600 : 400 }}>
-                {skill}
-              </span>
-              {level > 0 && (
-                <span style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, color: lv.color || group.col, letterSpacing: '0.06em', flexShrink: 0 }}>
-                  {lv.label}
+            <div key={skill} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={() => cycleLevel(skill)} style={{
+                flex: 1, display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 10px', borderRadius: 10, border: 'none',
+                background: level > 0 ? (group.col + '12') : 'transparent',
+                cursor: 'pointer', textAlign: 'left',
+              }}>
+                <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                  {[1,2,3].map(dot => (
+                    <div key={dot} style={{ width: 7, height: 7, borderRadius: '50%', background: dot <= level ? (lv.color || group.col) : t.s2 }}/>
+                  ))}
+                </div>
+                <span style={{ flex: 1, fontFamily: t.fonts.body, fontSize: 13, color: level > 0 ? t.fg : t.fgMuted, fontWeight: level > 0 ? 600 : 400 }}>
+                  {skill}
                 </span>
-              )}
-            </button>
+                {bestPr && (
+                  <span style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, color: group.col, letterSpacing: '0.04em', flexShrink: 0 }}>
+                    {bestPr.value}kg
+                  </span>
+                )}
+                {!bestPr && level > 0 && (
+                  <span style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, color: lv.color || group.col, letterSpacing: '0.06em', flexShrink: 0 }}>
+                    {lv.label}
+                  </span>
+                )}
+              </button>
+              <button onClick={() => openPrSheet(skill)} style={{
+                width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                border: `1px solid ${Object.keys(skillPrs).length > 0 ? group.col : t.border}`,
+                background: Object.keys(skillPrs).length > 0 ? group.col + '20' : 'transparent',
+                color: Object.keys(skillPrs).length > 0 ? group.col : t.fgFaint,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: t.fonts.mono, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
+              }}>
+                PR
+              </button>
+            </div>
           );
         })}
       </div>
       <div style={{ marginTop: 10, fontFamily: t.fonts.body, fontSize: 11, color: t.fgFaint }}>
-        Toca un skill para cambiar el nivel
+        Toca el nombre para cambiar nivel · PR para registrar récords
       </div>
+
+      {/* PR Sheet overlay */}
+      {prSkill && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end',
+        }} onClick={() => setPrSkill(null)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: '100%', background: t.bg, borderRadius: '20px 20px 0 0', padding: '20px 20px 40px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div>
+                <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16, color: t.fg }}>{prSkill}</div>
+                <div style={{ fontFamily: t.fonts.mono, fontSize: 9, color: t.fgFaint, letterSpacing: '0.14em', marginTop: 2 }}>ALL-TIME PRs · KG</div>
+              </div>
+              <button onClick={() => setPrSkill(null)} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: t.surface, color: t.fg, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              {PR_REPS.map(r => {
+                const saved = prs[prSkill]?.[r];
+                return (
+                  <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 36, fontFamily: t.fonts.mono, fontSize: 13, fontWeight: 700, color: t.fgMuted, textAlign: 'right', flexShrink: 0 }}>
+                      {r}RM
+                    </div>
+                    <input
+                      type="number"
+                      value={prInputs[r] ?? ''}
+                      onChange={e => setPrInputs(prev => ({ ...prev, [r]: e.target.value }))}
+                      placeholder={saved ? String(saved.value) : '—'}
+                      style={{
+                        flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${t.border}`,
+                        background: t.surface, color: t.fg, fontFamily: t.fonts.mono, fontSize: 15, fontWeight: 700, outline: 'none',
+                      }}
+                    />
+                    {saved && (
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontFamily: t.fonts.mono, fontSize: 13, fontWeight: 700, color: t.accent }}>{saved.value} kg</div>
+                        <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, color: t.fgFaint }}>{saved.date}</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={savePrs} style={{
+              width: '100%', padding: '13px', borderRadius: 14, border: 'none',
+              background: t.accent, color: '#0A0908', cursor: 'pointer',
+              fontFamily: t.fonts.body, fontWeight: 700, fontSize: 15,
+            }}>
+              Guardar PRs
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

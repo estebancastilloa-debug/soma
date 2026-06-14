@@ -17,6 +17,30 @@ const HABIT_ES = {
 const CAT_LABEL = { body: 'Cuerpo', mind: 'Mente', fuel: 'Nutrición', social: 'Social' };
 const CAT_PILLAR = { body: 'train', mind: 'records', fuel: 'eat', social: 'journal' };
 
+// ─── Physical feeling states ───────────────────────────────────────────
+const PHYS_STATES = [
+  { id: 'great',   label: 'Excelente', color: '#34C759' },
+  { id: 'good',    label: 'Bien',      color: '#42C5F5' },
+  { id: 'ok',      label: 'Normal',    color: '#F5C542' },
+  { id: 'tired',   label: 'Cansado',   color: '#F59E0B' },
+  { id: 'drained', label: 'Agotado',   color: '#DC2626' },
+];
+
+// ─── Body area groups ──────────────────────────────────────────────────
+const BODY_AREA_GROUPS = [
+  { group: 'SUPERIOR', areas: ['Cuello', 'Hombro izq', 'Hombro der', 'Codo izq', 'Codo der', 'Muñeca izq', 'Muñeca der'] },
+  { group: 'TORSO',    areas: ['Espalda alta', 'Lumbar', 'Pecho', 'Core'] },
+  { group: 'INFERIOR', areas: ['Cadera', 'Cuádriceps izq', 'Cuádriceps der', 'Isquios izq', 'Isquios der', 'Rodilla izq', 'Rodilla der', 'Tobillo izq', 'Tobillo der'] },
+];
+
+// ─── WebAuthn helpers ──────────────────────────────────────────────────
+function u8ToB64(arr) {
+  return btoa(String.fromCharCode(...new Uint8Array(arr)));
+}
+function b64ToU8(b64) {
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+}
+
 // ─── Psychology items ──────────────────────────────────────────────────
 const PSYCH_ITEMS = [
   { id:'adhd',     lab:'ADHD',               sub:'Atención · hiperactividad · sistemas'     },
@@ -383,6 +407,21 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   });
   const [psychDetailItem, setPsychDetailItem] = useState(null);
 
+  // Physical feeling + body areas (localStorage, per-day)
+  const [physMood, setPhysMood] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('soma_phys_mood') || '{}')[today] || null; }
+    catch { return null; }
+  });
+  const [bodyAreas, setBodyAreas] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('soma_body_areas') || '{}')[today] || []; }
+    catch { return []; }
+  });
+
+  // Psychology biometric lock
+  const [psychUnlocked, setPsychUnlocked] = useState(false);
+  const [bioEnabled, setBioEnabled] = useState(() => !!localStorage.getItem('soma_webauthn_id'));
+  const [bioRegistering, setBioRegistering] = useState(false);
+
   // Habit template — which habits the user tracks
   const [habitTemplate, setHabitTemplate] = useState(() => {
     try {
@@ -455,6 +494,86 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     localStorage.setItem('soma_psychology', JSON.stringify(next));
   }
 
+  function handlePhysMood(id) {
+    setPhysMood(id);
+    try {
+      const all = JSON.parse(localStorage.getItem('soma_phys_mood') || '{}');
+      all[today] = id;
+      localStorage.setItem('soma_phys_mood', JSON.stringify(all));
+    } catch {}
+  }
+
+  function toggleBodyArea(area) {
+    const next = bodyAreas.includes(area) ? bodyAreas.filter(a => a !== area) : [...bodyAreas, area];
+    setBodyAreas(next);
+    try {
+      const all = JSON.parse(localStorage.getItem('soma_body_areas') || '{}');
+      all[today] = next;
+      localStorage.setItem('soma_body_areas', JSON.stringify(all));
+    } catch {}
+  }
+
+  const areaFrequency = (() => {
+    try {
+      const all = JSON.parse(localStorage.getItem('soma_body_areas') || '{}');
+      const counts = {};
+      Object.values(all).forEach(areas => {
+        (areas || []).forEach(a => { counts[a] = (counts[a] || 0) + 1; });
+      });
+      return counts;
+    } catch { return {}; }
+  })();
+
+  async function registerBiometric() {
+    if (!window.PublicKeyCredential) {
+      alert('Tu dispositivo no soporta biometría web. Intenta en Safari (iOS) o Chrome (Android).');
+      return;
+    }
+    setBioRegistering(true);
+    try {
+      const cred = await navigator.credentials.create({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          rp: { name: 'SOMA', id: window.location.hostname },
+          user: {
+            id: new TextEncoder().encode(user?.id || 'soma-user'),
+            name: user?.email || 'soma@user',
+            displayName: 'SOMA User',
+          },
+          pubKeyCredParams: [
+            { type: 'public-key', alg: -7 },
+            { type: 'public-key', alg: -257 },
+          ],
+          authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+          timeout: 60000,
+        }
+      });
+      if (cred) {
+        localStorage.setItem('soma_webauthn_id', u8ToB64(cred.rawId));
+        setBioEnabled(true);
+        setPsychUnlocked(true);
+      }
+    } catch { /* user cancelled */ }
+    finally { setBioRegistering(false); }
+  }
+
+  async function authenticateBiometric() {
+    const storedId = localStorage.getItem('soma_webauthn_id');
+    if (!storedId) { setPsychUnlocked(true); return; }
+    try {
+      const result = await navigator.credentials.get({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          rpId: window.location.hostname,
+          allowCredentials: [{ type: 'public-key', id: b64ToU8(storedId) }],
+          userVerification: 'required',
+          timeout: 60000,
+        }
+      });
+      if (result) setPsychUnlocked(true);
+    } catch { /* user cancelled */ }
+  }
+
   const todayPrompt   = PROMPTS[new Date().getDay() % PROMPTS.length];
   const activeHabits  = HABITS.filter(h => habitTemplate.includes(h.id));
   const doneCount     = habits.filter(id => activeHabits.find(h => h.id === id)).length;
@@ -483,11 +602,11 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
         {/* ── TAB: DÍA ── */}
         {tab === 'dia' && (
           <>
-            {/* Mood */}
+            {/* Mental Mood */}
             <div style={{ margin:'14px 20px 0', padding:16, background:t.surface, borderRadius:18, border:'1px solid '+t.divider }}>
               <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:12 }}>
                 <IconHeart size={14} color={t.secondary}/>
-                <MonoLabel t={t}>¿cómo te sientes ahora?</MonoLabel>
+                <MonoLabel t={t}>estado mental</MonoLabel>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8 }}>
                 {MOOD_ICONS.map((MoodIcon, i) => (
@@ -509,6 +628,86 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Physical Mood */}
+            <div style={{ margin:'10px 20px 0', padding:16, background:t.surface, borderRadius:18, border:'1px solid '+t.divider }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:12 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.fgFaint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+                <MonoLabel t={t}>estado físico</MonoLabel>
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {PHYS_STATES.map(s => (
+                  <button key={s.id} onClick={() => handlePhysMood(s.id)} style={{
+                    flex:1, minWidth:0, padding:'9px 4px', borderRadius:10, border:'none', cursor:'pointer',
+                    background: physMood === s.id ? s.color : t.s2,
+                    color: physMood === s.id ? '#fff' : t.fgMuted,
+                    fontFamily:t.fonts.body, fontWeight: physMood === s.id ? 700 : 400, fontSize:12,
+                    transition:'all 0.15s',
+                  }}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Body areas */}
+            <div style={{ margin:'10px 20px 0', padding:16, background:t.surface, borderRadius:18, border:'1px solid '+t.divider }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                <MonoLabel t={t}>¿qué molesta hoy?</MonoLabel>
+                {bodyAreas.length > 0 && (
+                  <span style={{ fontFamily:t.fonts.mono, fontSize:9, fontWeight:700, color:'#DC2626', letterSpacing:'0.1em' }}>
+                    {bodyAreas.length} ÁREA{bodyAreas.length>1?'S':''}
+                  </span>
+                )}
+              </div>
+              {BODY_AREA_GROUPS.map(({ group, areas }) => (
+                <div key={group} style={{ marginBottom:10 }}>
+                  <div style={{ fontFamily:t.fonts.mono, fontSize:8, fontWeight:700, letterSpacing:'0.16em', color:t.fgFaint, textTransform:'uppercase', marginBottom:6 }}>
+                    {group}
+                  </div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+                    {areas.map(area => {
+                      const active = bodyAreas.includes(area);
+                      const freq = areaFrequency[area] || 0;
+                      return (
+                        <button key={area} onClick={() => toggleBodyArea(area)} style={{
+                          padding:'5px 9px', borderRadius:8,
+                          border:`1px solid ${active ? '#DC2626' : t.border}`,
+                          background: active ? '#DC262618' : t.s2,
+                          color: active ? '#DC2626' : t.fgMuted,
+                          cursor:'pointer', fontFamily:t.fonts.body, fontSize:11, fontWeight: active ? 600 : 400,
+                          display:'flex', alignItems:'center', gap:3,
+                        }}>
+                          {area}
+                          {freq > 1 && (
+                            <span style={{ fontFamily:t.fonts.mono, fontSize:8, color: active ? '#DC2626' : t.fgFaint, opacity:0.7 }}>
+                              ×{freq}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {Object.keys(areaFrequency).length > 0 && (
+                <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid '+t.divider }}>
+                  <div style={{ fontFamily:t.fonts.mono, fontSize:8, fontWeight:700, letterSpacing:'0.14em', color:t.fgFaint, textTransform:'uppercase', marginBottom:6 }}>
+                    Más frecuentes (historial)
+                  </div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+                    {Object.entries(areaFrequency).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([area, count]) => (
+                      <div key={area} style={{ padding:'4px 8px', borderRadius:6, background:t.s2, display:'flex', alignItems:'center', gap:4 }}>
+                        <span style={{ fontFamily:t.fonts.body, fontSize:11, color:t.fgMuted }}>{area}</span>
+                        <span style={{ fontFamily:t.fonts.mono, fontSize:9, fontWeight:700, color:'#DC2626' }}>×{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Habits */}
@@ -635,7 +834,56 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
         )}
 
         {/* ── TAB: PSICOLOGÍA ── */}
-        {tab === 'psicologia' && (
+        {tab === 'psicologia' && !psychUnlocked && (
+          <div style={{ padding:'60px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:20, textAlign:'center' }}>
+            <div style={{ width:72, height:72, borderRadius:20, background:t.surface, border:'1px solid '+t.divider, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={t.fgMuted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:22, letterSpacing:'-0.03em', color:t.fg, marginBottom:8 }}>
+                Zona privada
+              </div>
+              <div style={{ fontFamily:t.fonts.body, fontSize:13.5, color:t.fgMuted, lineHeight:1.6, maxWidth:280 }}>
+                {bioEnabled
+                  ? 'Verifica tu identidad con huella digital para acceder a tu Inner Map.'
+                  : 'Activa la autenticación biométrica para proteger tu perfil psicológico.'}
+              </div>
+            </div>
+            {bioEnabled ? (
+              <button onClick={authenticateBiometric} style={{
+                padding:'14px 32px', borderRadius:14, border:'none',
+                background:t.accent, color:'#0A0908', cursor:'pointer',
+                fontFamily:t.fonts.body, fontWeight:700, fontSize:15,
+              }}>
+                Verificar con huella
+              </button>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:10, width:'100%', maxWidth:300 }}>
+                <button onClick={registerBiometric} disabled={bioRegistering} style={{
+                  padding:'14px', borderRadius:14, border:'none',
+                  background:t.accent, color:'#0A0908', cursor:'pointer',
+                  fontFamily:t.fonts.body, fontWeight:700, fontSize:14,
+                  opacity: bioRegistering ? 0.6 : 1,
+                }}>
+                  {bioRegistering ? 'Activando...' : 'Activar huella digital'}
+                </button>
+                <button onClick={() => setPsychUnlocked(true)} style={{
+                  padding:'12px', borderRadius:14,
+                  border:'1px solid '+t.divider, background:'transparent',
+                  color:t.fgMuted, cursor:'pointer',
+                  fontFamily:t.fonts.body, fontWeight:600, fontSize:13,
+                }}>
+                  Continuar sin protección
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'psicologia' && psychUnlocked && (
           <>
             <div style={{ margin:'14px 20px 0' }}>
               <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:22, letterSpacing:'-0.03em', color:t.fg, marginBottom:4 }}>Inner Map</div>
