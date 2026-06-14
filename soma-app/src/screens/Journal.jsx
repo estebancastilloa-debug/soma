@@ -423,10 +423,19 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   const [bioEnabled, setBioEnabled] = useState(() => !!localStorage.getItem('soma_webauthn_id'));
   const [bioRegistering, setBioRegistering] = useState(false);
   const [healthData, setHealthData] = useState(null);
+  const [todayWorkout, setTodayWorkout] = useState(null);
+  const [obsidianCopied, setObsidianCopied] = useState(false);
 
   useEffect(() => {
     getTodayHealthData().then(d => { if (d) setHealthData(d); });
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('workouts').select('*')
+      .eq('user_id', user.id).eq('date', today).maybeSingle()
+      .then(({ data }) => { if (data) setTodayWorkout(data); });
+  }, [user]);
 
   // Habit template — which habits the user tracks
   const [habitTemplate, setHabitTemplate] = useState(() => {
@@ -498,6 +507,124 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     const next = { ...psychData, [id]: { ...(psychData[id] || {}), [field]: value } };
     setPsychData(next);
     localStorage.setItem('soma_psychology', JSON.stringify(next));
+  }
+
+  function buildObsidianNote() {
+    const dateLabel = new Date().toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    const lines = [];
+
+    lines.push(`# 📊 SOMA — ${today}`);
+    lines.push(`_${dateLabel}_`);
+    lines.push('');
+
+    // ── Entrenamiento ──
+    lines.push('## 🏋️ Entrenamiento');
+    if (todayWorkout) {
+      lines.push(`- **WOD:** ${todayWorkout.name || '—'}`);
+      if (todayWorkout.wod_type)   lines.push(`- **Tipo:** ${todayWorkout.wod_type}`);
+      if (todayWorkout.description) lines.push(`- **Descripción:** ${todayWorkout.description}`);
+      if (todayWorkout.score != null) lines.push(`- **Score:** ${todayWorkout.score} ${todayWorkout.score_unit || ''}`);
+      if (todayWorkout.notes)      lines.push(`- **Notas:** ${todayWorkout.notes}`);
+    } else {
+      lines.push('- Sin entrenamiento registrado hoy');
+    }
+    lines.push('');
+
+    // ── Estado Mental ──
+    lines.push('## 🧠 Estado Mental');
+    const moodLabels = ['Muy mal', 'Mal', 'Regular', 'Bien', 'Genial'];
+    lines.push(`- **Mood:** ${moodLabels[mood] ?? '—'} (${mood + 1}/5)`);
+    lines.push('');
+
+    // ── Estado Físico ──
+    lines.push('## 💪 Estado Físico');
+    const physLabel = PHYS_STATES.find(s => s.id === physMood)?.label || 'No registrado';
+    lines.push(`- **Estado:** ${physLabel}`);
+    if (bodyAreas.length > 0) {
+      lines.push(`- **Áreas que molestan:** ${bodyAreas.join(', ')}`);
+    }
+    lines.push('');
+
+    // ── Hábitos ──
+    const activeHabits = HABITS.filter(h => habitTemplate.includes(h.id));
+    const doneHabits   = activeHabits.filter(h => habits.includes(h.id));
+    lines.push(`## ✅ Hábitos — ${doneHabits.length}/${activeHabits.length}`);
+    activeHabits.forEach(h => {
+      const done = habits.includes(h.id);
+      lines.push(`- [${done ? 'x' : ' '}] ${HABIT_ES[h.id] || h.lab}`);
+    });
+    lines.push('');
+
+    // ── Biométricas (Health Connect) ──
+    if (healthData) {
+      lines.push('## ❤️ Biométricas');
+      if (healthData.hrv)        lines.push(`- **HRV:** ${healthData.hrv} ms`);
+      if (healthData.rhr)        lines.push(`- **RHR:** ${healthData.rhr} bpm`);
+      if (healthData.sleepHours) lines.push(`- **Sueño:** ${healthData.sleepHours} h`);
+      if (healthData.steps)      lines.push(`- **Pasos:** ${healthData.steps.toLocaleString()}`);
+      if (healthData.calories)   lines.push(`- **Calorías activas:** ${healthData.calories} kcal`);
+      if (healthData.weight)     lines.push(`- **Peso:** ${healthData.weight} kg`);
+      lines.push('');
+    }
+
+    // ── Reflexión del día ──
+    const todayP = PROMPTS[new Date().getDay() % PROMPTS.length];
+    lines.push('## 📝 Reflexión del día');
+    lines.push(`> _"${todayP.text}"_`);
+    lines.push('');
+    if (journalText.trim()) {
+      journalText.trim().split('\n').forEach(l => lines.push(l));
+    } else {
+      lines.push('_Sin respuesta hoy_');
+    }
+    lines.push('');
+
+    // ── Locus de Control ──
+    const locusQs = [
+      { key:'q1', q:'¿Qué intenté controlar que no era mío?' },
+      { key:'q2', q:'¿Qué estaba en mi control y no aproveché?' },
+      { key:'q3', q:'¿Cómo puedo responder mejor mañana?' },
+    ];
+    const hasLocus = locusQs.some(({ key }) => locusAnswers[key]?.trim());
+    if (hasLocus) {
+      lines.push('## 🔄 Locus de Control');
+      locusQs.forEach(({ key, q }) => {
+        lines.push(`**${q}**`);
+        lines.push(locusAnswers[key]?.trim() || '_Sin respuesta_');
+        lines.push('');
+      });
+    }
+
+    // ── Psicología (notas del día) ──
+    const psychNotes = Object.entries(psychData)
+      .filter(([, d]) => d?.notes?.trim())
+      .map(([id, d]) => {
+        const item = PSYCH_ITEMS.find(p => p.id === id);
+        return item ? `**${item.lab}:** ${d.notes.trim()}` : null;
+      })
+      .filter(Boolean);
+    if (psychNotes.length) {
+      lines.push('## 🧬 Inner Map — Notas');
+      psychNotes.forEach(n => lines.push(`- ${n}`));
+      lines.push('');
+    }
+
+    lines.push('---');
+    lines.push(`_Exportado desde SOMA · ${new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' })}_`);
+
+    return lines.join('\n');
+  }
+
+  async function handleCopyObsidian() {
+    const note = buildObsidianNote();
+    try {
+      await navigator.clipboard.writeText(note);
+      setObsidianCopied(true);
+      setTimeout(() => setObsidianCopied(false), 3000);
+    } catch {
+      // fallback: show in alert on devices without clipboard API
+      alert(note);
+    }
   }
 
   function handlePhysMood(id) {
@@ -813,6 +940,41 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                   outline:'none', resize:'vertical', boxSizing:'border-box',
                 }}
               />
+            </div>
+
+            {/* ── Exportar a Obsidian ── */}
+            <div style={{ margin:'16px 20px 0' }}>
+              <button onClick={handleCopyObsidian} style={{
+                width:'100%', padding:'15px 20px', borderRadius:16,
+                border:`1.5px solid ${obsidianCopied ? '#7C3AED' : t.divider}`,
+                background: obsidianCopied ? '#7C3AED18' : t.surface,
+                cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12,
+                transition:'all 0.2s',
+              }}>
+                <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                  <div style={{
+                    width:36, height:36, borderRadius:10, flexShrink:0,
+                    background: obsidianCopied ? '#7C3AED' : t.s2,
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                  }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path d="M9 12h6M9 16h6M9 8h3" stroke={obsidianCopied ? '#fff' : t.fgMuted} strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" stroke={obsidianCopied ? '#fff' : t.fgMuted} strokeWidth="2"/>
+                    </svg>
+                  </div>
+                  <div style={{ textAlign:'left' }}>
+                    <div style={{ fontFamily:t.fonts.body, fontWeight:700, fontSize:13.5, color: obsidianCopied ? '#7C3AED' : t.fg }}>
+                      {obsidianCopied ? '✓ Copiado — pega en Obsidian' : 'Copiar resumen del día'}
+                    </div>
+                    <div style={{ fontFamily:t.fonts.mono, fontSize:9, color:t.fgFaint, letterSpacing:'0.1em', marginTop:2 }}>
+                      ENTRENO · MOOD · HÁBITOS · HRV · REFLEXIÓN
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontFamily:t.fonts.mono, fontSize:10, fontWeight:700, color: obsidianCopied ? '#7C3AED' : t.fgFaint, letterSpacing:'0.1em', flexShrink:0 }}>
+                  {obsidianCopied ? 'LISTO' : 'COPIAR →'}
+                </div>
+              </button>
             </div>
 
             {/* Body signals — real Health Connect data */}
