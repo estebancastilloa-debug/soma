@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { getTodayHealthData } from '../lib/healthConnect.js';
 import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab } from '../chrome.jsx';
 import { IconHeart, IconRecovery, IconSleep, IconWater, MOOD_ICONS, MOOD_LABELS } from '../icons.jsx';
 import { HABITS, PROMPTS } from '../data/habits.js';
@@ -421,6 +422,11 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   const [psychUnlocked, setPsychUnlocked] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(() => !!localStorage.getItem('soma_webauthn_id'));
   const [bioRegistering, setBioRegistering] = useState(false);
+  const [healthData, setHealthData] = useState(null);
+
+  useEffect(() => {
+    getTodayHealthData().then(d => { if (d) setHealthData(d); });
+  }, []);
 
   // Habit template — which habits the user tracks
   const [habitTemplate, setHabitTemplate] = useState(() => {
@@ -809,27 +815,31 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
               />
             </div>
 
-            {/* Body signals */}
+            {/* Body signals — real Health Connect data */}
             <SectionHead t={t}>señales corporales</SectionHead>
             <div style={{ margin:'10px 20px 0', display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8 }}>
               {[
-                { lab:'HRV',   Icon:IconRecovery },
-                { lab:'RHR',   Icon:IconHeart    },
-                { lab:'Sueño', Icon:IconSleep    },
-                { lab:'Agua',  Icon:IconWater    },
+                { lab:'HRV',   Icon:IconRecovery, val: healthData?.hrv   ? `${healthData.hrv} ms`  : '—', live: !!healthData?.hrv   },
+                { lab:'RHR',   Icon:IconHeart,    val: healthData?.rhr   ? `${healthData.rhr} bpm` : '—', live: !!healthData?.rhr   },
+                { lab:'Sueño', Icon:IconSleep,    val: healthData?.sleepHours ? `${healthData.sleepHours}h` : '—', live: !!healthData?.sleepHours },
+                { lab:'Pasos', Icon:IconWater,    val: healthData?.steps  ? healthData.steps.toLocaleString() : '—', live: !!healthData?.steps },
               ].map((s, i) => (
                 <div key={i} style={{ padding:'12px 14px', background:t.surface, borderRadius:14, border:'1px solid '+t.divider }}>
                   <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
-                    <s.Icon size={13} stroke={1.8} color={t.fgFaint}/>
+                    <s.Icon size={13} stroke={1.8} color={s.live ? t.accent : t.fgFaint}/>
                     <MonoLabel t={t}>{s.lab}</MonoLabel>
                   </div>
-                  <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:22, letterSpacing:'-0.025em', color:t.fgFaint }}>—</div>
+                  <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:20, letterSpacing:'-0.025em', color: s.live ? t.fg : t.fgFaint }}>
+                    {s.val}
+                  </div>
                 </div>
               ))}
             </div>
-            <div style={{ margin:'6px 20px 16px', fontFamily:t.fonts.body, fontSize:11.5, color:t.fgFaint }}>
-              Conecta un dispositivo de salud para ver datos reales.
-            </div>
+            {!healthData && (
+              <div style={{ margin:'6px 20px 16px', fontFamily:t.fonts.body, fontSize:11.5, color:t.fgFaint }}>
+                Conecta Health Connect desde el Dashboard para ver datos reales.
+              </div>
+            )}
           </>
         )}
 

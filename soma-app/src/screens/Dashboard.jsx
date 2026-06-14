@@ -10,6 +10,7 @@ import {
 } from '../icons.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { supabase } from '../lib/supabase.js';
+import { checkAvailability, requestPermissions, getTodayHealthData } from '../lib/healthConnect.js';
 
 // ─── 2×2 Widget ──────────────────────────────────────────────────────
 function Widget({ t, Icon, lab, main, sub, col, onClick }) {
@@ -70,6 +71,28 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
   const [weekStreak,   setWeekStreak]   = useState(0);
   const [todayWod,     setTodayWod]     = useState(null);
   const [habitsToday,  setHabitsToday]  = useState(0);
+  const [healthData,   setHealthData]   = useState(null);
+  const [hcStatus,     setHcStatus]     = useState('idle'); // idle|unavailable|needs-permission|connected
+
+  // Health Connect
+  useEffect(() => {
+    async function loadHealth() {
+      const avail = await checkAvailability();
+      if (avail !== 'Available') { setHcStatus('unavailable'); return; }
+      const data = await getTodayHealthData();
+      if (data) { setHealthData(data); setHcStatus('connected'); }
+      else { setHcStatus('needs-permission'); }
+    }
+    loadHealth();
+  }, []);
+
+  async function handleConnectHealth() {
+    const granted = await requestPermissions();
+    if (granted) {
+      const data = await getTodayHealthData();
+      if (data) { setHealthData(data); setHcStatus('connected'); }
+    }
+  }
 
   useEffect(() => {
     if (!session?.user) return;
@@ -161,19 +184,43 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
           </div>
 
           {/* Score row */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 4 }}>
             <span style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 60,
               letterSpacing: '-0.06em', lineHeight: 1 }}>
-              —
+              {healthData?.hrv ?? '—'}
             </span>
-            <span style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 16,
-              opacity: 0.55, marginBottom: 10 }}>/100</span>
+            {healthData?.hrv && (
+              <span style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 16,
+                opacity: 0.55, marginBottom: 10 }}>ms HRV</span>
+            )}
           </div>
 
-          {/* Subtag */}
-          <div style={{ marginTop: 8, fontFamily: t.fonts.body, fontSize: 11, opacity: 0.7 }}>
-            Sin datos de recuperación aún
-          </div>
+          {/* Health chips row */}
+          {healthData ? (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+              {healthData.rhr    && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>RHR {healthData.rhr} bpm</div>}
+              {healthData.sleepHours && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>Sueño {healthData.sleepHours}h</div>}
+              {healthData.steps  && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>{healthData.steps.toLocaleString()} pasos</div>}
+              {healthData.weight && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>{healthData.weight} kg</div>}
+            </div>
+          ) : (
+            <div style={{ marginTop: 8 }}>
+              {hcStatus === 'needs-permission' && (
+                <button onClick={handleConnectHealth} style={{
+                  padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: 'rgba(255,255,255,0.2)', color: t.onAccent,
+                  fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em',
+                }}>
+                  CONECTAR HEALTH CONNECT →
+                </button>
+              )}
+              {(hcStatus === 'unavailable' || hcStatus === 'idle') && (
+                <div style={{ fontFamily: t.fonts.body, fontSize: 11, opacity: 0.7 }}>
+                  {hcStatus === 'unavailable' ? 'Instala Health Connect para ver datos' : 'Sin datos de recuperación aún'}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── 2×2 widget grid ── */}
