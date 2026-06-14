@@ -8,11 +8,11 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function getWeekDays() {
+function getWeekDays(offset = 0) {
   const now = new Date();
   const dayOfWeek = now.getDay(); // 0=Sun
   const monday = new Date(now);
-  monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1) + offset * 7);
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
@@ -70,61 +70,88 @@ function wodTypeLabel(wt) {
 
 // ─── Week strip calendar ───────────────────────────────────────────────
 
-function WeekStrip({ t, workoutDates }) {
-  const days = getWeekDays();
+function weekLabel(offset) {
+  if (offset === 0) return 'Esta semana';
+  if (offset === -1) return 'Semana pasada';
+  if (offset === 1) return 'Próxima semana';
+  return offset < 0 ? `Hace ${-offset} semanas` : `En ${offset} semanas`;
+}
+
+function WeekStrip({ t, workoutDates, offset, onPrev, onNext }) {
+  const days = getWeekDays(offset);
   const today = todayIso();
   const datesSet = new Set(workoutDates);
 
+  const arrowBtn = {
+    background: 'transparent', border: 'none', cursor: 'pointer',
+    color: t.fgMuted, fontSize: 18, padding: '0 4px', lineHeight: 1,
+    display: 'flex', alignItems: 'center',
+  };
+
   return (
     <div style={{
-      display: 'flex', gap: 6, margin: '14px 20px 0',
-      padding: '14px 16px', background: t.surface,
-      border: `1px solid ${t.divider}`, borderRadius: 18,
+      margin: '14px 20px 0', padding: '12px 12px 14px',
+      background: t.surface, border: `1px solid ${t.divider}`, borderRadius: 18,
     }}>
-      {days.map((d, i) => {
-        const iso = isoDate(d);
-        const isToday = iso === today;
-        const hasWorkout = datesSet.has(iso);
+      {/* Week nav header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 10,
+      }}>
+        <button style={arrowBtn} onClick={onPrev}>‹</button>
+        <span style={{
+          fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700,
+          letterSpacing: '0.12em', textTransform: 'uppercase', color: t.fgMuted,
+        }}>
+          {weekLabel(offset)}
+        </span>
+        <button style={arrowBtn} onClick={onNext}>›</button>
+      </div>
 
-        return (
-          <div key={iso} style={{
-            flex: 1, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', gap: 6,
-          }}>
-            {/* Day letter */}
-            <span style={{
-              fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
-              letterSpacing: '0.1em', textTransform: 'uppercase',
-              color: isToday ? t.pillar.train : t.fgMuted,
-            }}>
-              {DAY_LABELS[i]}
-            </span>
+      {/* Day columns */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        {days.map((d, i) => {
+          const iso = isoDate(d);
+          const isToday = iso === today;
+          const hasWorkout = datesSet.has(iso);
 
-            {/* Day number */}
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: isToday ? t.pillar.train : 'transparent',
-              border: isToday ? 'none' : `1.5px solid ${t.divider}`,
+          return (
+            <div key={iso} style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', gap: 6,
             }}>
               <span style={{
-                fontFamily: t.fonts.body, fontWeight: isToday ? 700 : 500,
-                fontSize: 12,
-                color: isToday ? '#0A0908' : t.fg,
+                fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                color: isToday ? t.pillar.train : t.fgMuted,
               }}>
-                {d.getDate()}
+                {DAY_LABELS[i]}
               </span>
-            </div>
 
-            {/* Workout dot */}
-            <div style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: hasWorkout ? t.pillar.train : 'transparent',
-              border: hasWorkout ? 'none' : `1.5px solid ${t.fgFaint}`,
-            }}/>
-          </div>
-        );
-      })}
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: isToday ? t.pillar.train : 'transparent',
+                border: isToday ? 'none' : `1.5px solid ${t.divider}`,
+              }}>
+                <span style={{
+                  fontFamily: t.fonts.body, fontWeight: isToday ? 700 : 500,
+                  fontSize: 12,
+                  color: isToday ? '#0A0908' : t.fg,
+                }}>
+                  {d.getDate()}
+                </span>
+              </div>
+
+              <div style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: hasWorkout ? t.pillar.train : 'transparent',
+                border: hasWorkout ? 'none' : `1.5px solid ${t.fgFaint}`,
+              }}/>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -435,8 +462,10 @@ function WorkoutCard({ t, workout }) {
 export function TrainScreen({ t, onNav, onMenu, onPlus }) {
   const { session } = useAuth();
   const [workouts, setWorkouts]     = useState([]);
+  const [allWorkouts, setAllWorkouts] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0);
 
   const loadWorkouts = useCallback(async () => {
     if (!session?.user) return;
@@ -446,21 +475,22 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
       .select('*')
       .eq('user_id', session.user.id)
       .order('date', { ascending: false })
-      .limit(20);
+      .limit(50);
+    setAllWorkouts(data || []);
     setWorkouts(data || []);
     setLoading(false);
   }, [session]);
 
   useEffect(() => { loadWorkouts(); }, [loadWorkouts]);
 
-  const weekDays    = getWeekDays();
+  const weekDays    = getWeekDays(weekOffset);
   const weekStart   = isoDate(weekDays[0]);
   const weekEnd     = isoDate(weekDays[6]);
   const today       = todayIso();
 
-  const workoutDates = workouts.map(w => w.date);
-  const thisWeekDates = workoutDates.filter(d => d >= weekStart && d <= weekEnd);
-  const todayWorkout  = workouts.find(w => w.date === today) || null;
+  const weekDates     = allWorkouts.map(w => w.date).filter(d => d >= weekStart && d <= weekEnd);
+  const todayWorkout  = allWorkouts.find(w => w.date === today) || null;
+  const historyList   = allWorkouts;
 
   function handleSaved() {
     setShowForm(false);
@@ -481,7 +511,13 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
       <div style={{ height: 'calc(100% - 56px)', overflowY: 'auto', paddingBottom: 100 }}>
 
         {/* ── Week strip ── */}
-        <WeekStrip t={t} workoutDates={thisWeekDates}/>
+        <WeekStrip
+          t={t}
+          workoutDates={weekDates}
+          offset={weekOffset}
+          onPrev={() => setWeekOffset(o => o - 1)}
+          onNext={() => setWeekOffset(o => o + 1)}
+        />
 
         {/* ── Today ── */}
         <SectionHead t={t}>hoy</SectionHead>
@@ -520,7 +556,7 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
           }}>
             Cargando…
           </div>
-        ) : workouts.length === 0 ? (
+        ) : historyList.length === 0 ? (
           <div style={{
             padding: '28px 20px', textAlign: 'center',
             fontFamily: t.fonts.body, fontSize: 13, color: t.fgMuted,
@@ -529,7 +565,7 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
           </div>
         ) : (
           <div style={{ marginTop: 4 }}>
-            {workouts.map(w => (
+            {historyList.map(w => (
               <WorkoutCard key={w.id} t={t} workout={w}/>
             ))}
           </div>
