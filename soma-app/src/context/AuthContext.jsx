@@ -32,12 +32,13 @@ export function AuthProvider({ children }) {
   }
 
   async function saveProfile(updates) {
+    if (!session?.user?.id) return { data: null, error: new Error('No active session') };
     const { data, error } = await supabase
       .from('profiles')
-      .upsert({ id: session.user.id, ...updates })
+      .upsert({ id: session.user.id, ...updates }, { onConflict: 'id' })
       .select()
-      .single();
-    if (!error) setProfile(data);
+      .maybeSingle();
+    if (!error && data) setProfile(data);
     return { data, error };
   }
 

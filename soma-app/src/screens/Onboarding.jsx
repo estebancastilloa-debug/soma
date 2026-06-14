@@ -464,30 +464,37 @@ export function OnboardingScreen({ t, onNav, onMenu, onPlus }) {
     setSaving(true);
     setSaveError(null);
 
-    const wKg = weight
-      ? (weightUnit === 'lbs' ? parseFloat(weight) * 0.453592 : parseFloat(weight))
-      : null;
-    const hCm = height
-      ? (heightUnit === 'in' ? parseFloat(height) * 2.54 : parseFloat(height))
-      : null;
+    try {
+      const wKg = weight
+        ? (weightUnit === 'lbs' ? parseFloat(weight) * 0.453592 : parseFloat(weight))
+        : null;
+      const hCm = height
+        ? (heightUnit === 'in' ? parseFloat(height) * 2.54 : parseFloat(height))
+        : null;
 
-    const { error } = await saveProfile({
-      name,
-      weight_kg:    wKg ? parseFloat(wKg.toFixed(1)) : null,
-      height_cm:    hCm ? parseFloat(hCm.toFixed(0)) : null,
-      goal:         goals.join(','),
-      experience,
-      days_per_week: days ? parseInt(days) : null,
-      time_of_day:  timeOfDay,
-      rhr:          hrRest ? parseInt(hrRest) : null,
-      onboarded:    true,
-    });
+      const { error } = await saveProfile({
+        name,
+        weight_kg:    wKg ? parseFloat(wKg.toFixed(1)) : null,
+        height_cm:    hCm ? parseFloat(hCm.toFixed(0)) : null,
+        goal:         goals.join(','),
+        experience,
+        days_per_week: days ? parseInt(days) : null,
+        time_of_day:  timeOfDay,
+        rhr:          hrRest ? parseInt(hrRest) : null,
+        onboarded:    true,
+      });
 
-    if (error) {
-      setSaveError('Error al guardar. Intenta de nuevo.');
+      if (error) {
+        console.error('saveProfile error:', error);
+        setSaveError(error.message || 'Error al guardar. Intenta de nuevo.');
+        setSaving(false);
+      }
+      // On success, AuthContext updates profile → App.jsx exits onboarding automatically
+    } catch (err) {
+      console.error('handleEnter exception:', err);
+      setSaveError(err.message || 'Error inesperado. Intenta de nuevo.');
       setSaving(false);
     }
-    // On success, AuthContext updates profile → App.jsx exits onboarding automatically
   }
 
   return (
