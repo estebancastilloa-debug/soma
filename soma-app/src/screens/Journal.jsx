@@ -316,7 +316,7 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
         )}
 
         {/* MIS NOTAS */}
-        <div style={{ padding: '16px 20px' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + t.divider }}>
           <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase', marginBottom: 10 }}>
             Mis Notas
           </div>
@@ -324,7 +324,7 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
             value={data.notes || ''}
             onChange={e => onUpdate(item.id, 'notes', e.target.value)}
             placeholder="Añade tus reflexiones, insights o aprendizajes..."
-            rows={5}
+            rows={4}
             style={{
               width: '100%', background: t.surface, border: '1px solid ' + t.border,
               borderRadius: 12, padding: '12px 14px', color: t.fg,
@@ -332,6 +332,33 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
               outline: 'none', resize: 'vertical', boxSizing: 'border-box',
             }}
           />
+        </div>
+
+        {/* RESPUESTA DE NOTEBOOKLM */}
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase', marginBottom: 6 }}>
+            Respuesta de NotebookLM
+          </div>
+          <div style={{ fontFamily: t.fonts.body, fontSize: 11.5, color: t.fgFaint, lineHeight: 1.4, marginBottom: 10 }}>
+            Pega aquí la respuesta de NotebookLM cuando uses el prompt de arriba. Esto enriquece tu perfil y los futuros prompts.
+          </div>
+          <textarea
+            value={data.nlmResponse || ''}
+            onChange={e => onUpdate(item.id, 'nlmResponse', e.target.value)}
+            placeholder="Pega la respuesta de NotebookLM aquí..."
+            rows={5}
+            style={{
+              width: '100%', background: t.s2, border: '1px solid ' + t.border,
+              borderRadius: 12, padding: '12px 14px', color: t.fg,
+              fontFamily: t.fonts.body, fontSize: 13, lineHeight: 1.5,
+              outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+            }}
+          />
+          {data.nlmResponse && (
+            <div style={{ marginTop: 6, fontFamily: t.fonts.mono, fontSize: 8.5, color: t.fgFaint, textAlign: 'right', letterSpacing: '0.1em' }}>
+              GUARDADO ✓
+            </div>
+          )}
         </div>
       </div>
     </div>

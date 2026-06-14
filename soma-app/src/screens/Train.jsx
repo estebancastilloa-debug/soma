@@ -487,13 +487,223 @@ function WorkoutCard({ t, workout }) {
   );
 }
 
+// ─── NotebookLM programming modal ─────────────────────────────────────
+
+function buildProgramPrompt(profile, workouts) {
+  const today    = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const now      = new Date();
+  const dow      = now.getDay();
+  const mon      = new Date(now);
+  mon.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+  const weekStart = mon.toISOString().slice(0, 10);
+  const weekEnd   = now.toISOString().slice(0, 10);
+
+  const thisWeek = workouts.filter(w => w.date >= weekStart && w.date <= weekEnd);
+
+  const goalMap  = { muscle: 'Ganar músculo', fat: 'Perder grasa', perf: 'Rendimiento', health: 'Salud general' };
+  const goalsStr = profile?.goal ? profile.goal.split(',').map(g => goalMap[g] || g).join(', ') : 'No especificado';
+
+  const wodLines = thisWeek.length === 0
+    ? '  (Sin entrenamientos esta semana)'
+    : thisWeek.map(w => {
+        const d = new Date(w.date + 'T00:00:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' });
+        const parts = [`${d} | ${w.name || 'Entreno'}`];
+        if (w.wod_type) parts.push(w.wod_type.toUpperCase());
+        if (w.score_value != null) parts.push(`Score: ${w.score_value} ${w.score_unit || ''}`);
+        if (w.rpe) parts.push(`RPE: ${w.rpe}/10`);
+        if (w.notes) parts.push(`Notas: ${w.notes}`);
+        return '  - ' + parts.join(' · ');
+      }).join('\n');
+
+  const injuryNotes = localStorage.getItem('soma_injury_notes') || '';
+  const focusAreas  = (() => { try { return JSON.parse(localStorage.getItem('soma_focus_areas') || '[]'); } catch { return []; } })();
+  const goals       = (() => { try { return JSON.parse(localStorage.getItem('soma_goals') || 'null'); } catch { return null; } })();
+  const equipment   = (() => { try { return JSON.parse(localStorage.getItem('soma_equipment') || '[]'); } catch { return []; } })();
+  const skills      = (() => { try { return JSON.parse(localStorage.getItem('soma_movements') || '{}'); } catch { return {}; } })();
+
+  const equipStr    = equipment.length > 0 ? equipment.join(', ') : 'No especificado';
+  const focusStr    = focusAreas.filter(a => a.status === 'active').map(a => `  - ${a.text}`).join('\n') || '  (Sin áreas de enfoque activas)';
+  const annualGoal  = goals?.annual || '(No definida)';
+  const quarterStr  = (goals?.quarterly || []).map((q, i) => `  Q${i+1}: ${q.text}`).join('\n') || '  (No definidos)';
+
+  const advancedSkills = Object.entries(skills).filter(([,lv]) => lv >= 2).map(([s]) => s);
+  const learningSkills = Object.entries(skills).filter(([,lv]) => lv === 1).map(([s]) => s);
+
+  return `═══════════════════════════════════════
+SOMA — PROMPT DE PROGRAMACIÓN SEMANAL
+${today}
+═══════════════════════════════════════
+
+PERFIL DEL ATLETA:
+  Nombre: ${profile?.name || '[sin nombre]'}
+  Objetivo(s): ${goalsStr}
+  Días/semana: ${profile?.days_per_week || '?'}
+  Horario: ${profile?.time_of_day || 'no especificado'}
+  Peso: ${profile?.weight_kg ? profile.weight_kg + ' kg' : '—'}
+  Altura: ${profile?.height_cm ? profile.height_cm + ' cm' : '—'}
+
+META ANUAL:
+  ${annualGoal}
+
+METAS TRIMESTRALES:
+${quarterStr}
+
+EQUIPO DISPONIBLE:
+  ${equipStr}
+
+SKILLS AVANZADOS (lv 2-3):
+  ${advancedSkills.join(', ') || '(No registrados)'}
+SKILLS EN PROGRESO (lv 1):
+  ${learningSkills.join(', ') || '(No registrados)'}
+
+ENTRENAMIENTOS ESTA SEMANA:
+${wodLines}
+
+ESTADO FÍSICO / LESIONES:
+  ${injuryNotes ? injuryNotes.trim() : '(Sin lesiones reportadas)'}
+
+ÁREAS DE ENFOQUE ACTUALES:
+${focusStr}
+
+═══════════════════════════════════════
+SOLICITUD:
+
+1. Analiza la carga de esta semana (volumen, intensidad, RPE promedio).
+2. Considera mi estado físico y áreas de enfoque prioritarias.
+3. Diseña la programación para los próximos ${profile?.days_per_week || 4} días.
+
+Para CADA DÍA incluye:
+  - Objetivo del día (fuerza, condicionamiento, skill, descanso activo)
+  - Calentamiento específico (5-10 min)
+  - Parte principal: WOD completo con movimientos, reps y cargas sugeridas para mi nivel
+  - Tipo: AMRAP / EMOM / For Time / Fuerza / etc.
+  - Escala o modificación considerando mis limitaciones físicas
+  - Tiempo estimado total
+
+4. Si necesitas más datos para una mejor programación, indica exactamente:
+   NECESITA_DATO: [descripción del dato que falta]
+
+═══════════════════════════════════════`;
+}
+
+function ProgramModal({ t, profile, workouts, onClose }) {
+  const [tab,     setTab]     = useState('prompt');
+  const [copied,  setCopied]  = useState(false);
+  const [pasted,  setPasted]  = useState(() => localStorage.getItem('soma_program_next') || '');
+  const prompt = buildProgramPrompt(profile, workouts);
+
+  function copy() {
+    navigator.clipboard?.writeText(prompt).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
+
+  function savePasted(val) {
+    setPasted(val);
+    localStorage.setItem('soma_program_next', val);
+  }
+
+  const alerts = [...(pasted.matchAll(/NECESITA_DATO:\s*(.+)/g))].map(m => m[1]);
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 95, background: t.bg, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '52px 20px 12px', borderBottom: `1px solid ${t.divider}`, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t.fgMuted, fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13, padding: '0 0 10px', display: 'block' }}>
+          ← Volver a Entrena
+        </button>
+        <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22, letterSpacing: '-0.03em', color: t.fg }}>
+          NotebookLM · Programación
+        </div>
+        <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, marginTop: 4, lineHeight: 1.4 }}>
+          Copia el prompt → pégalo en NotebookLM → pega la respuesta aquí.
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, padding: '12px 20px 0', flexShrink: 0 }}>
+        {[{ id: 'prompt', lab: '① Copiar prompt' }, { id: 'paste', lab: '② Pegar programa' }].map(tb => (
+          <button key={tb.id} onClick={() => setTab(tb.id)} style={{
+            flex: 1, padding: '9px', borderRadius: 10, cursor: 'pointer',
+            background: tab === tb.id ? t.pillar.train : t.surface,
+            color: tab === tb.id ? '#0A0908' : t.fgMuted,
+            fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13,
+            border: `1px solid ${tab === tb.id ? t.pillar.train : t.divider}`,
+          }}>
+            {tb.lab}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px 40px' }}>
+        {tab === 'prompt' ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+              <button onClick={copy} style={{
+                padding: '9px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: copied ? '#34C759' : t.pillar.train,
+                color: '#0A0908', fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13,
+              }}>
+                {copied ? '✓ Copiado!' : 'Copiar prompt'}
+              </button>
+            </div>
+            <textarea readOnly value={prompt} rows={28} style={{
+              width: '100%', background: t.surface, border: `1px solid ${t.border}`,
+              borderRadius: 12, padding: '14px', color: t.fg,
+              fontFamily: t.fonts.mono, fontSize: 10.5, lineHeight: 1.6,
+              resize: 'none', outline: 'none', boxSizing: 'border-box',
+            }}/>
+            <div style={{ marginTop: 12, padding: '12px 14px', background: t.surface, borderRadius: 12, border: `1px solid ${t.divider}` }}>
+              <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.fgFaint, marginBottom: 6 }}>CÓMO USARLO</div>
+              <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, lineHeight: 1.6 }}>
+                {'1. Copia el prompt arriba\n2. Abre NotebookLM con tu notebook de entrenamiento\n3. Pega el prompt en el chat y envíalo\n4. Copia la respuesta → pestaña "② Pegar programa"'}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {alerts.length > 0 && (
+              <div style={{ marginBottom: 12, padding: '12px 14px', background: '#FF9F0A18', border: '1.5px solid #FF9F0A', borderRadius: 12 }}>
+                <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#FF9F0A', marginBottom: 8 }}>
+                  ⚠ DATOS FALTANTES DETECTADOS
+                </div>
+                {alerts.map((a, i) => (
+                  <div key={i} style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fg, padding: '3px 0' }}>
+                    → {a}
+                  </div>
+                ))}
+              </div>
+            )}
+            <textarea
+              value={pasted}
+              onChange={e => savePasted(e.target.value)}
+              placeholder="Pega aquí la respuesta de NotebookLM con tu programación semanal..."
+              rows={24}
+              style={{
+                width: '100%', background: t.surface, border: `1px solid ${t.border}`,
+                borderRadius: 12, padding: '14px', color: t.fg,
+                fontFamily: t.fonts.body, fontSize: 13, lineHeight: 1.6,
+                resize: 'none', outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+            {pasted && (
+              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                <span style={{ fontFamily: t.fonts.mono, fontSize: 8.5, color: t.fgFaint, letterSpacing: '0.1em' }}>GUARDADO ✓</span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── TrainScreen ─────────────────────────────────────────────────────
 
 export function TrainScreen({ t, onNav, onMenu, onPlus }) {
-  const { session } = useAuth();
-  const [workouts, setWorkouts] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const { session, profile } = useAuth();
+  const [workouts,     setWorkouts]     = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [showForm,     setShowForm]     = useState(false);
+  const [showProgram,  setShowProgram]  = useState(false);
 
   const loadWorkouts = useCallback(async () => {
     if (!session?.user) return;
@@ -564,6 +774,40 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
           </div>
         )}
 
+        {/* ── NotebookLM programming ── */}
+        {(() => {
+          const saved = localStorage.getItem('soma_program_next');
+          return (
+            <div style={{ margin: '14px 20px 0' }}>
+              {saved ? (
+                <div style={{ background: t.surface, border: `1px solid ${t.divider}`, borderRadius: 14, padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.pillar.train }}>
+                      PROGRAMACIÓN PRÓXIMA SEMANA
+                    </div>
+                    <button onClick={() => setShowProgram(true)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, color: t.fgMuted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                      EDITAR →
+                    </button>
+                  </div>
+                  <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'hidden' }}>
+                    {saved.slice(0, 300)}{saved.length > 300 ? '…' : ''}
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowProgram(true)} style={{
+                  width: '100%', background: t.pillar.train + '15',
+                  border: `1.5px dashed ${t.pillar.train}`,
+                  borderRadius: 14, padding: '13px 0',
+                  fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13.5,
+                  color: t.pillar.train, cursor: 'pointer', letterSpacing: '-0.01em',
+                }}>
+                  Generar programación con NotebookLM →
+                </button>
+              )}
+            </div>
+          );
+        })()}
+
         {/* ── History ── */}
         <SectionHead t={t}>historial</SectionHead>
 
@@ -592,6 +836,15 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
       </div>
 
       <Fab t={t} onClick={onPlus}/>
+
+      {showProgram && (
+        <ProgramModal
+          t={t}
+          profile={profile}
+          workouts={workouts}
+          onClose={() => setShowProgram(false)}
+        />
+      )}
     </ScreenFrame>
   );
 }

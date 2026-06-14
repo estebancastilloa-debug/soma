@@ -452,270 +452,176 @@ function FocusAreasCard({ t }) {
   );
 }
 
-// ─── Equipment card ───────────────────────────────────────────────────────────
+// ─── Equipment card (BTWB-style predefined checklist) ─────────────────────────
+
+const EQUIPMENT_GROUPS = [
+  { group: 'BARRAS & PESO LIBRE', items: ['Barra olímpica', 'Barra de peso ligero (15 kg)', 'Mancuernas', 'Kettlebell', 'Discos / Bumper plates', 'Chaleco con peso'] },
+  { group: 'GYMNASTICS',          items: ['Barra de dominadas', 'Anillas', 'Paralelas (Parallettes)', 'Cuerda de escalar'] },
+  { group: 'CARDIO',              items: ['Remo (Concept2)', 'Bici de asalto (Assault / Echo)', 'SkiErg', 'Cuerda para saltar'] },
+  { group: 'ACCESORIOS',          items: ['Cajón pliométrico (Box)', 'Balón medicinal (Wall ball)', 'AbMat', 'GHD', 'Banda elástica', 'Foam roller'] },
+];
 
 function EquipmentCard({ t }) {
-  const [items, setItems]     = useState(() => loadEquipment());
-  const [adding, setAdding]   = useState(false);
-  const [newName, setNewName] = useState('');
+  const [checked, setChecked] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(LS_EQUIPMENT) || '[]')); }
+    catch { return new Set(); }
+  });
 
-  function persist(next) {
-    setItems(next);
-    saveEquipment(next);
+  function toggle(name) {
+    const next = new Set(checked);
+    next.has(name) ? next.delete(name) : next.add(name);
+    setChecked(next);
+    localStorage.setItem(LS_EQUIPMENT, JSON.stringify([...next]));
   }
 
-  function addItem() {
-    const name = newName.trim();
-    if (!name) return;
-    persist([...items, { id: Date.now().toString(), name }]);
-    setNewName('');
-    setAdding(false);
-  }
-
-  function removeItem(id) {
-    persist(items.filter(i => i.id !== id));
-  }
-
-  function handleKeyDown(e) {
-    if (e.key === 'Enter') addItem();
-    if (e.key === 'Escape') { setAdding(false); setNewName(''); }
-  }
+  const total = EQUIPMENT_GROUPS.reduce((s, g) => s + g.items.length, 0);
 
   return (
-    <div style={{
-      background: t.surface, borderRadius: 16, padding: 16,
-      margin: '8px 20px', border: `1px solid ${t.divider}`,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>
-          Equipo disponible
+    <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>Equipo disponible</div>
+        <div style={{ fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700, color: t.fgFaint, letterSpacing: '0.1em' }}>
+          {checked.size}/{total}
         </div>
-        {!adding && (
-          <button onClick={() => setAdding(true)} style={{
-            width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.divider}`,
-            background: 'transparent', color: t.fgMuted, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, lineHeight: 1,
-          }}>
-            +
-          </button>
-        )}
       </div>
 
-      {items.length === 0 && !adding && (
-        <div style={{ fontFamily: t.fonts.body, fontSize: 13, color: t.fgFaint, padding: '4px 0 2px', textAlign: 'center' }}>
-          Agrega el equipo que tienes disponible
-        </div>
-      )}
-
-      {items.map((item, idx) => (
-        <div key={item.id} style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '8px 0',
-          borderBottom: idx < items.length - 1 ? `1px solid ${t.divider}` : 'none',
-        }}>
-          <div style={{
-            flex: 1, fontFamily: t.fonts.body, fontSize: 13, color: t.fg,
-          }}>
-            {item.name}
+      {EQUIPMENT_GROUPS.map(({ group, items }) => (
+        <div key={group} style={{ marginBottom: 14 }}>
+          <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.fgFaint, marginBottom: 8 }}>
+            {group}
           </div>
-          <button onClick={() => removeItem(item.id)} style={{
-            width: 24, height: 24, borderRadius: 6, border: 'none',
-            background: 'transparent', color: t.fgFaint, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, flexShrink: 0,
-          }}>
-            ×
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {items.map(item => {
+              const on = checked.has(item);
+              return (
+                <button key={item} onClick={() => toggle(item)} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 10px', borderRadius: 10, border: 'none',
+                  background: on ? t.accent + '18' : 'transparent',
+                  cursor: 'pointer', textAlign: 'left', width: '100%',
+                }}>
+                  <div style={{
+                    width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                    background: on ? t.accent : 'transparent',
+                    border: `2px solid ${on ? t.accent : t.fgFaint}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {on && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0A0908" strokeWidth="3" strokeLinecap="round"><polyline points="4,12 10,18 20,6"/></svg>}
+                  </div>
+                  <span style={{ fontFamily: t.fonts.body, fontSize: 13, color: on ? t.fg : t.fgMuted, fontWeight: on ? 600 : 400 }}>
+                    {item}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       ))}
-
-      {adding && (
-        <div style={{ marginTop: items.length > 0 ? 10 : 4, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Input
-            t={t}
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            placeholder="ej. Barra olímpica, kettlebell 16kg…"
-            style={{ flex: 1 }}
-          />
-          <button onClick={addItem} style={{
-            padding: '11px 14px', borderRadius: 12, border: 'none',
-            background: t.accent, color: '#0A0908', cursor: 'pointer',
-            fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13, flexShrink: 0,
-          }}>
-            Agregar
-          </button>
-          <button onClick={() => { setAdding(false); setNewName(''); }} style={{
-            padding: '11px 10px', borderRadius: 12,
-            border: `1px solid ${t.divider}`, background: 'transparent',
-            color: t.fgMuted, cursor: 'pointer',
-            fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13, flexShrink: 0,
-          }}>
-            ✕
-          </button>
-        </div>
-      )}
-
-      {items.length === 0 && !adding && (
-        <div style={{
-          fontFamily: t.fonts.body, fontSize: 11, color: t.fgFaint,
-          marginTop: 8, lineHeight: 1.5,
-        }}>
-          Ej: Barra olímpica, mancuernas 20kg, kettlebell 16kg, anillas…
-        </div>
-      )}
     </div>
   );
 }
 
-// ─── Movements card ───────────────────────────────────────────────────────────
+// ─── Skills card (BTWB-style with levels) ─────────────────────────────────────
 
-const MOV_CATS = ['Todos', 'Fuerza', 'Olímpico', 'Gimnasia', 'Cardio'];
+const SKILL_GROUPS = [
+  { group: 'HALTEROFILIA',  col: '#42C5F5', skills: ['Snatch', 'Clean', 'Jerk', 'Clean & Jerk', 'Power Snatch', 'Power Clean', 'Hang Power Clean', 'Hang Power Snatch'] },
+  { group: 'FUERZA',        col: '#F5C542', skills: ['Back Squat', 'Front Squat', 'Overhead Squat', 'Deadlift', 'Romanian Deadlift', 'Bench Press', 'Strict Press', 'Push Press', 'Thruster'] },
+  { group: 'GYMNASTICS',    col: '#C542F5', skills: ['Pull-up', 'Butterfly Pull-up', 'Chest-to-bar', 'Muscle-up (barra)', 'Muscle-up (anilla)', 'Ring Dip', 'HSPU', 'Handstand Walk', 'Pistol Squat', 'Toes-to-bar', 'L-sit', 'Rope Climb'] },
+  { group: 'CARDIO & SKILLS', col: '#42F5A0', skills: ['Double-under', 'Box Jump', 'Wall Ball', 'Burpee', 'Running / Sprints', 'Rowing technique', 'Assault Bike', 'Sled Push/Pull'] },
+];
 
-const CAT_COLORS = {
-  Fuerza:   { bg: '#2A1F00', color: '#F5C542' },
-  Olímpico: { bg: '#001F2A', color: '#42C5F5' },
-  Gimnasia: { bg: '#1F002A', color: '#C542F5' },
-  Cardio:   { bg: '#002A1A', color: '#42F5A0' },
-};
+const SKILL_LEVELS = [
+  { label: '—',           color: null   },
+  { label: 'Aprend.',     color: '#F59E0B' },
+  { label: 'Compete.',    color: '#34C759' },
+  { label: 'Avanzado',   color: '#C8FB5A' },
+];
 
-function MovementsCard({ t }) {
-  const [movements, setMovements] = useState(() => loadMovements());
-  const [filter, setFilter]       = useState('Todos');
-  const [adding, setAdding]       = useState(false);
-  const [newName, setNewName]     = useState('');
-  const [newCat, setNewCat]       = useState('Fuerza');
+function SkillsCard({ t }) {
+  const [skills, setSkills] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(LS_MOVEMENTS) || '{}'); }
+    catch { return {}; }
+  });
+  const [activeGroup, setActiveGroup] = useState(SKILL_GROUPS[0].group);
 
-  function persist(next) {
-    setMovements(next);
-    saveMovements(next);
+  function cycleLevel(skill) {
+    const cur = skills[skill] || 0;
+    const next = { ...skills, [skill]: (cur + 1) % 4 };
+    setSkills(next);
+    localStorage.setItem(LS_MOVEMENTS, JSON.stringify(next));
   }
 
-  function addMovement() {
-    const name = newName.trim();
-    if (!name) return;
-    persist([...movements, { id: Date.now().toString(), name, cat: newCat }]);
-    setNewName('');
-    setNewCat('Fuerza');
-    setAdding(false);
-  }
-
-  function removeMovement(id) {
-    persist(movements.filter(m => m.id !== id));
-  }
-
-  const visible = filter === 'Todos' ? movements : movements.filter(m => m.cat === filter);
+  const group = SKILL_GROUPS.find(g => g.group === activeGroup);
 
   return (
-    <div style={{
-      background: t.surface, borderRadius: 16, padding: 16,
-      margin: '8px 20px', border: `1px solid ${t.divider}`,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>
-          Mis movimientos
-        </div>
-        {!adding && (
-          <button onClick={() => setAdding(true)} style={{
-            width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.divider}`,
-            background: 'transparent', color: t.fgMuted, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, lineHeight: 1,
-          }}>
-            +
-          </button>
-        )}
+    <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
+      <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg, marginBottom: 12 }}>
+        Skills & Movimientos
       </div>
 
-      {/* Category filter pills */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        {MOV_CATS.map(cat => (
-          <Pill key={cat} t={t} active={filter === cat} onClick={() => setFilter(cat)}
-            style={{ padding: '5px 11px', fontSize: 11 }}>
-            {cat}
-          </Pill>
+      {/* Category tabs */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+        {SKILL_GROUPS.map(g => (
+          <button key={g.group} onClick={() => setActiveGroup(g.group)} style={{
+            padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+            background: activeGroup === g.group ? g.col + '30' : t.s2,
+            color: activeGroup === g.group ? g.col : t.fgMuted,
+            fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700,
+            letterSpacing: '0.1em', textTransform: 'uppercase',
+            border: `1px solid ${activeGroup === g.group ? g.col : 'transparent'}`,
+          }}>
+            {g.group}
+          </button>
         ))}
       </div>
 
-      {visible.length === 0 && !adding && (
-        <div style={{
-          fontFamily: t.fonts.body, fontSize: 13, color: t.fgFaint,
-          padding: '6px 0', textAlign: 'center',
-        }}>
-          {filter === 'Todos'
-            ? 'Agrega los movimientos y ejercicios que dominas'
-            : `No hay movimientos en ${filter}`}
-        </div>
-      )}
-
-      {visible.map((mov, idx) => {
-        const clr = CAT_COLORS[mov.cat] || { bg: t.s2, color: t.fgMuted };
-        return (
-          <div key={mov.id} style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 0',
-            borderBottom: idx < visible.length - 1 ? `1px solid ${t.divider}` : 'none',
-          }}>
-            <div style={{ flex: 1, fontFamily: t.fonts.body, fontSize: 13, color: t.fg }}>
-              {mov.name}
+      {/* Skill level legend */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        {SKILL_LEVELS.map((lv, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 2 }}>
+              {[1,2,3].map(dot => (
+                <div key={dot} style={{ width: 5, height: 5, borderRadius: '50%', background: dot <= i ? (lv.color || t.fgFaint) : t.s2 }}/>
+              ))}
             </div>
-            <span style={{
-              padding: '3px 8px', borderRadius: 8,
-              background: clr.bg, color: clr.color,
-              fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
-              letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0,
-            }}>
-              {mov.cat}
-            </span>
-            <button onClick={() => removeMovement(mov.id)} style={{
-              width: 24, height: 24, borderRadius: 6, border: 'none',
-              background: 'transparent', color: t.fgFaint, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, flexShrink: 0,
-            }}>
-              ×
-            </button>
+            <span style={{ fontFamily: t.fonts.mono, fontSize: 8, color: t.fgFaint, letterSpacing: '0.06em' }}>{lv.label}</span>
           </div>
-        );
-      })}
+        ))}
+      </div>
 
-      {adding && (
-        <div style={{ marginTop: 12 }}>
-          <Input
-            t={t}
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            placeholder="ej. Sentadilla frontal, muscle-up…"
-            style={{ marginBottom: 10 }}
-          />
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-            {MOV_CATS.filter(c => c !== 'Todos').map(cat => (
-              <Pill key={cat} t={t} active={newCat === cat} onClick={() => setNewCat(cat)}
-                style={{ padding: '5px 11px', fontSize: 11 }}>
-                {cat}
-              </Pill>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={addMovement} style={{
-              flex: 1, padding: '11px', borderRadius: 12, border: 'none',
-              background: t.accent, color: '#0A0908', cursor: 'pointer',
-              fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13,
+      {/* Skills list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {group?.skills.map(skill => {
+          const level = skills[skill] || 0;
+          const lv = SKILL_LEVELS[level];
+          return (
+            <button key={skill} onClick={() => cycleLevel(skill)} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '9px 10px', borderRadius: 10, border: 'none',
+              background: level > 0 ? (group.col + '12') : 'transparent',
+              cursor: 'pointer', textAlign: 'left', width: '100%',
             }}>
-              Agregar
+              {/* 3-dot level */}
+              <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                {[1,2,3].map(dot => (
+                  <div key={dot} style={{ width: 7, height: 7, borderRadius: '50%', background: dot <= level ? (lv.color || group.col) : t.s2 }}/>
+                ))}
+              </div>
+              <span style={{ flex: 1, fontFamily: t.fonts.body, fontSize: 13, color: level > 0 ? t.fg : t.fgMuted, fontWeight: level > 0 ? 600 : 400 }}>
+                {skill}
+              </span>
+              {level > 0 && (
+                <span style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, color: lv.color || group.col, letterSpacing: '0.06em', flexShrink: 0 }}>
+                  {lv.label}
+                </span>
+              )}
             </button>
-            <button onClick={() => { setAdding(false); setNewName(''); setNewCat('Fuerza'); }} style={{
-              flex: 1, padding: '11px', borderRadius: 12,
-              border: `1px solid ${t.divider}`, background: 'transparent',
-              color: t.fgMuted, cursor: 'pointer',
-              fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13,
-            }}>
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 10, fontFamily: t.fonts.body, fontSize: 11, color: t.fgFaint }}>
+        Toca un skill para cambiar el nivel
+      </div>
     </div>
   );
 }
@@ -1008,7 +914,7 @@ export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
 
         {/* ── Movimientos ── */}
         <div style={{ marginTop: 4 }}>
-          <MovementsCard t={t} />
+          <SkillsCard t={t} />
         </div>
 
         {/* ── Metas ── */}
