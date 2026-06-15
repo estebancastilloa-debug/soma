@@ -76,12 +76,20 @@ export { computeTokens };
 const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
-  const [mode, setMode] = useState('dark');
-  const [intensityId, setIntensityId] = useState('vivid');
+  const [mode, setMode] = useState(() => {
+    try { return localStorage.getItem('soma_theme_mode') || 'dark'; } catch { return 'dark'; }
+  });
+  const [intensityId, setIntensityId] = useState(() => {
+    try { return localStorage.getItem('soma_theme_intensity') || 'calm'; } catch { return 'calm'; }
+  });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', mode);
     document.documentElement.setAttribute('data-intensity', intensityId);
+    try {
+      localStorage.setItem('soma_theme_mode', mode);
+      localStorage.setItem('soma_theme_intensity', intensityId);
+    } catch {}
   }, [mode, intensityId]);
 
   const t = computeTokens({ mode, intensityId });

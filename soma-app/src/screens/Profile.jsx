@@ -6,6 +6,7 @@ import {
 } from '../chrome.jsx';
 import { F5, WordmarkWithMark } from '../marks.jsx';
 import { checkAvailability, requestPermissions } from '../lib/healthConnect.js';
+import { useTheme, INTENSITIES } from '../theme.jsx';
 
 const APP_BUILD = 'b3';
 
@@ -135,6 +136,26 @@ function EditProfileCard({ t, profile, saveProfile }) {
     setGoal(prev => prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id]);
   }
 
+  function changeWeightUnit(next) {
+    if (next === weightUnit) return;
+    const num = parseFloat(weight);
+    if (!isNaN(num)) {
+      const converted = next === 'lbs' ? num / 0.453592 : num * 0.453592;
+      setWeight(String(Math.round(converted * 10) / 10));
+    }
+    setWeightUnit(next);
+  }
+
+  function changeHeightUnit(next) {
+    if (next === heightUnit) return;
+    const num = parseFloat(height);
+    if (!isNaN(num)) {
+      const converted = next === 'in' ? num / 2.54 : num * 2.54;
+      setHeight(String(Math.round(converted * 10) / 10));
+    }
+    setHeightUnit(next);
+  }
+
   async function handleSave() {
     setSaving(true);
     const weight_kg = weightUnit === 'kg'
@@ -195,8 +216,8 @@ function EditProfileCard({ t, profile, saveProfile }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <div style={fieldLabel}>Peso</div>
               <div style={{ display: 'flex', gap: 4 }}>
-                <Pill t={t} active={weightUnit === 'kg'} onClick={() => setWeightUnit('kg')}>kg</Pill>
-                <Pill t={t} active={weightUnit === 'lbs'} onClick={() => setWeightUnit('lbs')}>lbs</Pill>
+                <Pill t={t} active={weightUnit === 'kg'} onClick={() => changeWeightUnit('kg')}>kg</Pill>
+                <Pill t={t} active={weightUnit === 'lbs'} onClick={() => changeWeightUnit('lbs')}>lbs</Pill>
               </div>
             </div>
             <Input t={t} type="number" value={weight}
@@ -209,8 +230,8 @@ function EditProfileCard({ t, profile, saveProfile }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <div style={fieldLabel}>Altura</div>
               <div style={{ display: 'flex', gap: 4 }}>
-                <Pill t={t} active={heightUnit === 'cm'} onClick={() => setHeightUnit('cm')}>cm</Pill>
-                <Pill t={t} active={heightUnit === 'in'} onClick={() => setHeightUnit('in')}>in</Pill>
+                <Pill t={t} active={heightUnit === 'cm'} onClick={() => changeHeightUnit('cm')}>cm</Pill>
+                <Pill t={t} active={heightUnit === 'in'} onClick={() => changeHeightUnit('in')}>in</Pill>
               </div>
             </div>
             <Input t={t} type="number" value={height}
@@ -1143,6 +1164,79 @@ function GoalsCard({ t }) {
   );
 }
 
+// ─── Theme card ───────────────────────────────────────────────────────────────
+
+function ThemeCard({ t }) {
+  const { mode, setMode, intensityId, setIntensityId } = useTheme();
+
+  const swatch = (id) => {
+    // small preview of the 3 brand colors at the given intensity
+    const map = {
+      vivid: ['hsl(72 78% 60%)', 'hsl(18 100% 58%)', 'hsl(215 100% 68%)'],
+      calm:  ['hsl(72 36% 66%)', 'hsl(18 58% 64%)',  'hsl(215 58% 74%)'],
+      mono:  [t.fg, t.fgMuted, t.fgFaint],
+    };
+    return map[id] || map.vivid;
+  };
+
+  return (
+    <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
+      <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg, marginBottom: 12 }}>
+        Apariencia
+      </div>
+
+      {/* Mode: dark / light */}
+      <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.fgFaint, marginBottom: 8 }}>
+        Modo
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {[{ id: 'dark', label: 'Oscuro' }, { id: 'light', label: 'Claro' }].map(m => (
+          <button key={m.id} onClick={() => setMode(m.id)} style={{
+            flex: 1, padding: '10px', borderRadius: 12, cursor: 'pointer',
+            border: `1px solid ${mode === m.id ? t.accent : t.border}`,
+            background: mode === m.id ? t.accent + '18' : t.s2,
+            color: mode === m.id ? t.fg : t.fgMuted,
+            fontFamily: t.fonts.body, fontWeight: mode === m.id ? 700 : 500, fontSize: 13,
+          }}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Intensity / palette */}
+      <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.fgFaint, marginBottom: 8 }}>
+        Intensidad de color
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {Object.values(INTENSITIES).map(opt => {
+          const on = intensityId === opt.id;
+          return (
+            <button key={opt.id} onClick={() => setIntensityId(opt.id)} style={{
+              width: '100%', padding: '11px 12px', borderRadius: 12, cursor: 'pointer',
+              border: `1px solid ${on ? t.accent : t.border}`,
+              background: on ? t.accent + '18' : t.s2,
+              display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
+            }}>
+              <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                {swatch(opt.id).map((c, i) => (
+                  <div key={i} style={{ width: 14, height: 14, borderRadius: '50%', background: c }}/>
+                ))}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: t.fonts.body, fontWeight: on ? 700 : 600, fontSize: 13, color: t.fg }}>{opt.label}</div>
+                <div style={{ fontFamily: t.fonts.body, fontSize: 11, color: t.fgMuted, marginTop: 1 }}>{opt.note}</div>
+              </div>
+              {on && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.accent} strokeWidth="3" strokeLinecap="round"><polyline points="4,12 10,18 20,6"/></svg>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Health Connect card ──────────────────────────────────────────────────────
 
 function HealthConnectCard({ t }) {
@@ -1331,6 +1425,11 @@ export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
         {/* ── Health Connect ── */}
         <div style={{ marginTop: 4 }}>
           <HealthConnectCard t={t} />
+        </div>
+
+        {/* ── Apariencia ── */}
+        <div style={{ marginTop: 4 }}>
+          <ThemeCard t={t} />
         </div>
 
         {/* ── Sign out ── */}
