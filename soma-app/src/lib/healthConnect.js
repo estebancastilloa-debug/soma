@@ -1,142 +1,122 @@
 import { Capacitor } from '@capacitor/core';
+import { HealthConnect } from '@devmaxime/capacitor-health-connect';
 
-// Lazy-load the plugin so the web build doesn't break
-let HC = null;
-async function getPlugin() {
-  if (HC) return HC;
-  if (!Capacitor.isNativePlatform()) return null;
-  try {
-    const mod = await import('@devmaxime/capacitor-health-connect');
-    HC = mod.HealthConnect;
-    return HC;
-  } catch {
-    return null;
-  }
+// Records we read directly + aggregates we compute
+const READ_TYPES  = ['Steps', 'Weight', 'SleepSession', 'RestingHeartRate'];
+const WRITE_TYPES = [];
+
+function isNative() {
+  return Capacitor.isNativePlatform();
 }
 
-const PERMISSIONS = [
-  { accessType: 'read', recordType: 'HeartRate' },
-  { accessType: 'read', recordType: 'RestingHeartRate' },
-  { accessType: 'read', recordType: 'HeartRateVariabilitySdnn' },
-  { accessType: 'read', recordType: 'SleepSession' },
-  { accessType: 'read', recordType: 'Steps' },
-  { accessType: 'read', recordType: 'Weight' },
-  { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
-];
-
+// 'Available' | 'NotInstalled' | 'NotSupported' | 'unavailable'
 export async function checkAvailability() {
-  const hc = await getPlugin();
-  if (!hc) return 'unavailable';
+  if (!isNative()) return 'unavailable';
   try {
-    const { availability } = await hc.checkAvailability();
-    return availability; // 'Available' | 'NotInstalled' | 'NotSupported'
+    const { availability } = await HealthConnect.checkAvailability();
+    return availability || 'unavailable';
   } catch {
     return 'unavailable';
   }
 }
 
 export async function requestPermissions() {
-  const hc = await getPlugin();
-  if (!hc) return false;
+  if (!isNative()) return false;
   try {
-    const result = await hc.requestHealthPermissions({ permissions: PERMISSIONS });
-    return result.grantedPermissions?.length > 0;
+    const res = await HealthConnect.requestPermissions({ read: READ_TYPES, write: WRITE_TYPES });
+    return (res?.read?.length || 0) > 0;
   } catch {
     return false;
   }
 }
 
-// Returns today's health summary: { hrv, rhr, heartRate, sleepHours, steps, calories, weight }
+export async function getGrantedPermissions() {
+  if (!isNative()) return [];
+  try {
+    const res = await HealthConnect.getGrantedPermissions();
+    return res?.read || [];
+  } catch {
+    return [];
+  }
+}
+
+function iso(d) { return d.toISOString(); }
+
+// Returns today's health summary: { rhr, sleepHours, steps, calories, weight, heartRate }
 export async function getTodayHealthData() {
-  const hc = await getPlugin();
-  if (!hc) return null;
+  if (!isNative()) return null;
 
   const now   = new Date();
   const start = new Date(now); start.setHours(0, 0, 0, 0);
   const end   = new Date(now);
   const yesterday = new Date(start); yesterday.setDate(start.getDate() - 1);
 
-  function iso(d) { return d.toISOString(); }
-
   const results = {};
 
+  // Resting heart rate (read records)
   try {
-    const { records: hrvRecs } = await hc.readRecords({
-      recordType: 'HeartRateVariabilitySdnn',
-      timeRangeFilter: { type: 'between', startTime: iso(yesterday), endTime: iso(end) },
+    const { records } = await HealthConnect.readRecords({
+      start: iso(yesterday), end: iso(end), type: 'RestingHeartRate',
     });
-    if (hrvRecs?.length) {
-      results.hrv = Math.round(hrvRecs[hrvRecs.length - 1].heartRateVariabilityMillis);
+    if (records?.length) {
+      const last = records[records.length - 1];
+      const bpm = last.beatsPerMinute ?? last.bpm;
+      if (bpm) results.rhr = Math.round(bpm);
     }
   } catch {}
 
+  // Weight (read records)
   try {
-    const { records: rhrRecs } = await hc.readRecords({
-      recordType: 'RestingHeartRate',
-      timeRangeFilter: { type: 'between', startTime: iso(yesterday), endTime: iso(end) },
+    const { records } = await HealthConnect.readRecords({
+      start: iso(yesterday), end: iso(end), type: 'Weight',
     });
-    if (rhrRecs?.length) {
-      results.rhr = Math.round(rhrRecs[rhrRecs.length - 1].beatsPerMinute);
+    if (records?.length) {
+      const last = records[records.length - 1];
+      const kg = last.weight?.value ?? last.weight?.inKilograms ?? last.weight;
+      if (kg) results.weight = Math.round(kg * 10) / 10;
     }
   } catch {}
 
+  // Sleep (read records → sum durations of last night)
   try {
-    const { records: hrRecs } = await hc.readRecords({
-      recordType: 'HeartRate',
-      timeRangeFilter: { type: 'between', startTime: iso(start), endTime: iso(end) },
+    const sleepStart = new Date(yesterday); sleepStart.setHours(18, 0, 0, 0);
+    const { records } = await HealthConnect.readRecords({
+      start: iso(sleepStart), end: iso(end), type: 'SleepSession',
     });
-    if (hrRecs?.length) {
-      const samples = hrRecs.flatMap(r => r.samples || []);
-      if (samples.length) {
-        results.heartRate = Math.round(samples.reduce((s, x) => s + x.beatsPerMinute, 0) / samples.length);
-      }
-    }
-  } catch {}
-
-  try {
-    // Sleep: look at last night (yesterday 8pm → today 12pm)
-    const sleepStart = new Date(yesterday); sleepStart.setHours(20, 0, 0, 0);
-    const sleepEnd   = new Date(now);       sleepEnd.setHours(12, 0, 0, 0);
-    const { records: sleepRecs } = await hc.readRecords({
-      recordType: 'SleepSession',
-      timeRangeFilter: { type: 'between', startTime: iso(sleepStart), endTime: iso(sleepEnd) },
-    });
-    if (sleepRecs?.length) {
-      const totalMs = sleepRecs.reduce((s, r) => {
-        const dur = new Date(r.endTime) - new Date(r.startTime);
-        return s + dur;
-      }, 0);
+    if (records?.length) {
+      const totalMs = records.reduce((s, r) => s + (new Date(r.endTime) - new Date(r.startTime)), 0);
       results.sleepHours = Math.round((totalMs / 3_600_000) * 10) / 10;
     }
   } catch {}
 
+  // Steps (aggregate for the day)
   try {
-    const { records: stepRecs } = await hc.readRecords({
-      recordType: 'Steps',
-      timeRangeFilter: { type: 'between', startTime: iso(start), endTime: iso(end) },
+    const { aggregates } = await HealthConnect.aggregateRecords({
+      start: iso(start), end: iso(end), type: 'Steps', groupBy: 'day',
     });
-    if (stepRecs?.length) {
-      results.steps = stepRecs.reduce((s, r) => s + (r.count || 0), 0);
+    if (aggregates?.length) {
+      results.steps = Math.round(aggregates.reduce((s, a) => s + (a.value || 0), 0));
     }
   } catch {}
 
+  // Active calories (aggregate for the day)
   try {
-    const { records: calRecs } = await hc.readRecords({
-      recordType: 'ActiveCaloriesBurned',
-      timeRangeFilter: { type: 'between', startTime: iso(start), endTime: iso(end) },
+    const { aggregates } = await HealthConnect.aggregateRecords({
+      start: iso(start), end: iso(end), type: 'ActiveCaloriesBurned', groupBy: 'day',
     });
-    if (calRecs?.length) {
-      results.calories = Math.round(calRecs.reduce((s, r) => s + (r.energy?.inKilocalories || 0), 0));
+    if (aggregates?.length) {
+      results.calories = Math.round(aggregates.reduce((s, a) => s + (a.value || 0), 0));
     }
   } catch {}
 
+  // Average heart rate (aggregate for the day)
   try {
-    const { records: weightRecs } = await hc.readRecords({
-      recordType: 'Weight',
-      timeRangeFilter: { type: 'between', startTime: iso(yesterday), endTime: iso(end) },
+    const { aggregates } = await HealthConnect.aggregateRecords({
+      start: iso(start), end: iso(end), type: 'HeartRate', groupBy: 'day',
     });
-    if (weightRecs?.length) {
-      results.weight = Math.round(weightRecs[weightRecs.length - 1].weight.inKilograms * 10) / 10;
+    if (aggregates?.length) {
+      const vals = aggregates.map(a => a.value).filter(Boolean);
+      if (vals.length) results.heartRate = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
     }
   } catch {}
 

@@ -981,10 +981,10 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
             <SectionHead t={t}>señales corporales</SectionHead>
             <div style={{ margin:'10px 20px 0', display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8 }}>
               {[
-                { lab:'HRV',   Icon:IconRecovery, val: healthData?.hrv   ? `${healthData.hrv} ms`  : '—', live: !!healthData?.hrv   },
-                { lab:'RHR',   Icon:IconHeart,    val: healthData?.rhr   ? `${healthData.rhr} bpm` : '—', live: !!healthData?.rhr   },
-                { lab:'Sueño', Icon:IconSleep,    val: healthData?.sleepHours ? `${healthData.sleepHours}h` : '—', live: !!healthData?.sleepHours },
-                { lab:'Pasos', Icon:IconWater,    val: healthData?.steps  ? healthData.steps.toLocaleString() : '—', live: !!healthData?.steps },
+                { lab:'RHR',     Icon:IconHeart,    val: healthData?.rhr   ? `${healthData.rhr} bpm` : '—', live: !!healthData?.rhr   },
+                { lab:'Sueño',   Icon:IconSleep,    val: healthData?.sleepHours ? `${healthData.sleepHours}h` : '—', live: !!healthData?.sleepHours },
+                { lab:'Pasos',   Icon:IconRecovery, val: healthData?.steps != null ? healthData.steps.toLocaleString() : '—', live: healthData?.steps != null },
+                { lab:'Calorías',Icon:IconWater,    val: healthData?.calories != null ? `${healthData.calories}` : '—', live: healthData?.calories != null },
               ].map((s, i) => (
                 <div key={i} style={{ padding:'12px 14px', background:t.surface, borderRadius:14, border:'1px solid '+t.divider }}>
                   <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>

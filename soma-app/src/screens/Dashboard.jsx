@@ -187,20 +187,20 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 4 }}>
             <span style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 60,
               letterSpacing: '-0.06em', lineHeight: 1 }}>
-              {healthData?.hrv ?? '—'}
+              {healthData?.rhr ?? '—'}
             </span>
-            {healthData?.hrv && (
+            {healthData?.rhr && (
               <span style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 16,
-                opacity: 0.55, marginBottom: 10 }}>ms HRV</span>
+                opacity: 0.55, marginBottom: 10 }}>bpm en reposo</span>
             )}
           </div>
 
           {/* Health chips row */}
           {healthData ? (
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
-              {healthData.rhr    && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>RHR {healthData.rhr} bpm</div>}
               {healthData.sleepHours && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>Sueño {healthData.sleepHours}h</div>}
-              {healthData.steps  && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>{healthData.steps.toLocaleString()} pasos</div>}
+              {healthData.steps  != null && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>{healthData.steps.toLocaleString()} pasos</div>}
+              {healthData.calories != null && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>{healthData.calories} kcal</div>}
               {healthData.weight && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>{healthData.weight} kg</div>}
             </div>
           ) : (

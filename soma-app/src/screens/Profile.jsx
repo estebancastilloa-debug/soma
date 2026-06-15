@@ -327,28 +327,38 @@ function PhysicalStateCard({ t }) {
 
 // ─── Áreas de enfoque card ────────────────────────────────────────────────────
 
+// Connected catalog — movements come from skills, body areas predefined
+const FOCUS_BODY_AREAS = [
+  'Cuello', 'Hombros', 'Espalda alta', 'Lumbar', 'Core', 'Cadera',
+  'Glúteos', 'Cuádriceps', 'Isquiotibiales', 'Rodillas', 'Tobillos', 'Muñecas',
+];
+
+const FOCUS_CATS = [
+  { id: 'move', label: 'Movimientos' },
+  { id: 'body', label: 'Cuerpo' },
+];
+
 function FocusAreasCard({ t }) {
-  const [areas, setAreas]     = useState(() => loadFocus());
-  const [adding, setAdding]   = useState(false);
-  const [newText, setNewText] = useState('');
+  const [areas, setAreas]   = useState(() => {
+    // migrate any legacy free-text entries into the new shape
+    return loadFocus().map(a => a.label ? a : { id: a.id, label: a.text || a.label || '', cat: 'move', status: a.status || 'active' });
+  });
+  const [picking, setPicking]   = useState(false);
+  const [pickCat, setPickCat]   = useState('move');
 
   function persist(next) {
     setAreas(next);
     saveFocus(next);
   }
 
-  function addArea() {
-    const txt = newText.trim();
-    if (!txt) return;
-    const next = [...areas, {
-      id:      Date.now().toString(),
-      text:    txt,
-      status:  'active',
-      created: new Date().toISOString(),
-    }];
-    persist(next);
-    setNewText('');
-    setAdding(false);
+  const selectedLabels = new Set(areas.map(a => a.label));
+
+  function toggleItem(label, cat) {
+    if (selectedLabels.has(label)) {
+      persist(areas.filter(a => a.label !== label));
+    } else {
+      persist([...areas, { id: Date.now().toString() + label, label, cat, status: 'active' }]);
+    }
   }
 
   function toggleStatus(id) {
@@ -362,6 +372,11 @@ function FocusAreasCard({ t }) {
     persist(areas.filter(a => a.id !== id));
   }
 
+  // Build catalog for the active picker category
+  const catalog = pickCat === 'move'
+    ? SKILL_GROUPS.flatMap(g => g.skills.map(s => ({ label: s, color: g.col })))
+    : FOCUS_BODY_AREAS.map(b => ({ label: b, color: '#DC2626' }));
+
   return (
     <div style={{
       background: t.surface, borderRadius: 16, padding: 16,
@@ -371,51 +386,42 @@ function FocusAreasCard({ t }) {
         <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>
           Áreas de enfoque
         </div>
-        {!adding && (
-          <button onClick={() => setAdding(true)} style={{
-            width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.divider}`,
-            background: 'transparent', color: t.fgMuted, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, lineHeight: 1,
-          }}>
-            +
-          </button>
-        )}
+        <div style={{ fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700, color: t.fgFaint, letterSpacing: '0.1em' }}>
+          {areas.length}
+        </div>
       </div>
 
-      {areas.length === 0 && !adding && (
-        <div style={{
-          fontFamily: t.fonts.body, fontSize: 13, color: t.fgFaint,
-          padding: '8px 0', textAlign: 'center',
-        }}>
-          No hay áreas de enfoque. Agrega qué quieres priorizar.
+      {/* Selected focus items */}
+      {areas.length === 0 && !picking && (
+        <div style={{ fontFamily: t.fonts.body, fontSize: 13, color: t.fgFaint, padding: '4px 0 12px', textAlign: 'center' }}>
+          Elige movimientos o zonas del cuerpo que quieres priorizar.
         </div>
       )}
 
       {areas.map(area => {
         const improved = area.status === 'improved';
+        const dotColor = area.cat === 'body' ? '#DC2626'
+          : (SKILL_GROUPS.find(g => g.skills.includes(area.label))?.col || t.accent);
         return (
           <div key={area.id} style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 0',
-            borderBottom: `1px solid ${t.divider}`,
+            padding: '8px 0', borderBottom: `1px solid ${t.divider}`,
           }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0, opacity: improved ? 0.4 : 1 }}/>
             <div style={{
-              flex: 1,
-              fontFamily: t.fonts.body, fontSize: 13,
+              flex: 1, fontFamily: t.fonts.body, fontSize: 13,
               color: improved ? t.fgMuted : t.fg,
               textDecoration: improved ? 'line-through' : 'none',
               opacity: improved ? 0.6 : 1,
             }}>
-              {area.text}
+              {area.label}
             </div>
             <button onClick={() => toggleStatus(area.id)} style={{
               padding: '4px 9px', borderRadius: 10, border: 'none', cursor: 'pointer',
               fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700,
               letterSpacing: '0.1em', textTransform: 'uppercase',
               background: improved ? t.fgFaint : t.accent,
-              color: improved ? t.fgMuted : '#0A0908',
-              flexShrink: 0,
+              color: improved ? t.fgMuted : '#0A0908', flexShrink: 0,
             }}>
               {improved ? 'Mejorado' : 'Activo'}
             </button>
@@ -424,37 +430,63 @@ function FocusAreasCard({ t }) {
               background: 'transparent', color: t.fgFaint, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 14, flexShrink: 0,
-            }}>
-              ×
-            </button>
+            }}>×</button>
           </div>
         );
       })}
 
-      {adding && (
-        <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Input
-            t={t}
-            value={newText}
-            onChange={e => setNewText(e.target.value)}
-            placeholder="ej. Fortalecer espalda baja"
-            style={{ flex: 1 }}
-          />
-          <button onClick={addArea} style={{
-            padding: '11px 14px', borderRadius: 12, border: 'none',
-            background: t.accent, color: '#0A0908', cursor: 'pointer',
-            fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13, flexShrink: 0,
-          }}>
-            Agregar
-          </button>
-          <button onClick={() => { setAdding(false); setNewText(''); }} style={{
-            padding: '11px 10px', borderRadius: 12,
-            border: `1px solid ${t.divider}`, background: 'transparent',
-            color: t.fgMuted, cursor: 'pointer',
-            fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13, flexShrink: 0,
-          }}>
-            ✕
-          </button>
+      {/* Picker */}
+      {!picking ? (
+        <button onClick={() => setPicking(true)} style={{
+          marginTop: 12, width: '100%', padding: '9px', borderRadius: 10,
+          border: `1px dashed ${t.divider}`, background: 'transparent',
+          color: t.fgMuted, cursor: 'pointer',
+          fontFamily: t.fonts.body, fontSize: 12.5, fontWeight: 600,
+        }}>
+          + Agregar enfoque
+        </button>
+      ) : (
+        <div style={{ marginTop: 12 }}>
+          {/* Category tabs */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {FOCUS_CATS.map(c => (
+              <button key={c.id} onClick={() => setPickCat(c.id)} style={{
+                padding: '5px 12px', borderRadius: 8, cursor: 'pointer',
+                border: 'none',
+                background: pickCat === c.id ? t.accent : t.s2,
+                color: pickCat === c.id ? '#0A0908' : t.fgMuted,
+                fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+              }}>
+                {c.label}
+              </button>
+            ))}
+            <button onClick={() => setPicking(false)} style={{
+              marginLeft: 'auto', padding: '5px 10px', borderRadius: 8, border: 'none',
+              background: t.s2, color: t.fgMuted, cursor: 'pointer',
+              fontFamily: t.fonts.body, fontSize: 12, fontWeight: 600,
+            }}>
+              Listo
+            </button>
+          </div>
+          {/* Selectable chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+            {catalog.map(item => {
+              const on = selectedLabels.has(item.label);
+              return (
+                <button key={item.label} onClick={() => toggleItem(item.label, pickCat)} style={{
+                  padding: '6px 11px', borderRadius: 999,
+                  border: `1px solid ${on ? item.color : t.border}`,
+                  background: on ? item.color + '20' : t.s2,
+                  color: on ? item.color : t.fgMuted,
+                  cursor: 'pointer', fontFamily: t.fonts.body, fontSize: 12,
+                  fontWeight: on ? 600 : 400,
+                }}>
+                  {on ? '✓ ' : ''}{item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -1115,9 +1147,16 @@ function HealthConnectCard({ t }) {
   const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
+    let done = false;
     checkAvailability().then(avail => {
-      setStatus(avail === 'Available' ? 'disconnected' : 'unavailable');
-    });
+      done = true;
+      if (avail === 'Available') setStatus('disconnected');
+      else if (avail === 'NotInstalled') setStatus('not-installed');
+      else setStatus('unavailable');
+    }).catch(() => { done = true; setStatus('unavailable'); });
+    // Safety: never stay stuck on "checking"
+    const timer = setTimeout(() => { if (!done) setStatus('unavailable'); }, 4000);
+    return () => clearTimeout(timer);
   }, []);
 
   async function connect() {
@@ -1128,10 +1167,16 @@ function HealthConnectCard({ t }) {
   }
 
   const statusColor = status === 'connected' ? (t.semantic?.ok || '#34C759')
-                    : status === 'unavailable' ? t.fgFaint
+                    : (status === 'unavailable' || status === 'not-installed') ? t.fgFaint
                     : t.accent;
 
-  const statusLabel = { checking: 'Verificando...', unavailable: 'No disponible — instala Health Connect', disconnected: 'No conectado', connected: 'Conectado ✓' }[status];
+  const statusLabel = {
+    checking: 'Verificando...',
+    'not-installed': 'Falta instalar app',
+    unavailable: 'No disponible',
+    disconnected: 'Listo para conectar',
+    connected: 'Conectado ✓',
+  }[status];
 
   return (
     <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
@@ -1142,26 +1187,35 @@ function HealthConnectCard({ t }) {
         </div>
       </div>
       <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, lineHeight: 1.5, marginBottom: 12 }}>
-        Conecta Google Health Connect para ver HRV, frecuencia cardíaca, sueño, pasos y peso en tu Dashboard y Bitácora.
+        Conecta Google Health Connect para ver frecuencia cardíaca, sueño, pasos, calorías y peso en tu Dashboard y Bitácora.
       </div>
-      {status === 'unavailable' && (
+
+      {status === 'not-installed' && (
         <div style={{ padding: '10px 12px', borderRadius: 10, background: t.s2, fontFamily: t.fonts.body, fontSize: 12, color: t.fgMuted }}>
-          Instala "Health Connect" desde la Play Store y vuelve aquí.
+          Instala "Health Connect" desde la Play Store, ábrelo una vez, y vuelve aquí.
         </div>
       )}
-      {status === 'disconnected' && (
-        <button onClick={connect} disabled={connecting} style={{
-          width: '100%', padding: '11px', borderRadius: 12, border: 'none',
+
+      {status === 'unavailable' && (
+        <div style={{ padding: '10px 12px', borderRadius: 10, background: t.s2, fontFamily: t.fonts.body, fontSize: 12, color: t.fgMuted }}>
+          Solo disponible en la app instalada en Android. Si ya la instalaste, asegúrate de tener Health Connect en tu teléfono.
+        </div>
+      )}
+
+      {(status === 'disconnected' || status === 'checking') && (
+        <button onClick={connect} disabled={connecting || status === 'checking'} style={{
+          width: '100%', padding: '12px', borderRadius: 12, border: 'none',
           background: t.accent, color: '#0A0908', cursor: 'pointer',
           fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14,
-          opacity: connecting ? 0.6 : 1,
+          opacity: (connecting || status === 'checking') ? 0.6 : 1,
         }}>
-          {connecting ? 'Solicitando permisos...' : 'Conectar Health Connect'}
+          {connecting ? 'Solicitando permisos...' : status === 'checking' ? 'Verificando...' : 'Conectar Health Connect'}
         </button>
       )}
+
       {status === 'connected' && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {['HRV', 'RHR', 'Sueño', 'Pasos', 'Peso', 'Calorías'].map(m => (
+          {['RHR', 'Sueño', 'Pasos', 'Calorías', 'Peso'].map(m => (
             <div key={m} style={{ padding: '4px 10px', borderRadius: 8, background: (t.semantic?.ok || '#34C759') + '20', fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700, color: t.semantic?.ok || '#34C759', letterSpacing: '0.08em' }}>
               {m}
             </div>
