@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   StatusBar, MonoLabel, ScreenFrame, Fab, PillarHeader,
 } from '../chrome.jsx';
 import { F5, WordmarkWithMark } from '../marks.jsx';
 import { checkAvailability, requestPermissions } from '../lib/healthConnect.js';
+
+const APP_BUILD = 'b3';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -1143,45 +1146,41 @@ function GoalsCard({ t }) {
 // ─── Health Connect card ──────────────────────────────────────────────────────
 
 function HealthConnectCard({ t }) {
-  const [status, setStatus] = useState('checking'); // checking|unavailable|disconnected|connected
+  const native = Capacitor.isNativePlatform();
+  const [avail, setAvail] = useState(native ? 'unknown' : 'web');
   const [connecting, setConnecting] = useState(false);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    let done = false;
-    checkAvailability().then(avail => {
-      done = true;
-      if (avail === 'Available') setStatus('disconnected');
-      else if (avail === 'NotInstalled') setStatus('not-installed');
-      else setStatus('unavailable');
-    }).catch(() => { done = true; setStatus('unavailable'); });
-    // Safety: never stay stuck on "checking"
-    const timer = setTimeout(() => { if (!done) setStatus('unavailable'); }, 4000);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!native) return;
+    checkAvailability().then(a => setAvail(a)).catch(() => setAvail('error'));
+  }, [native]);
 
   async function connect() {
     setConnecting(true);
     const granted = await requestPermissions();
-    setStatus(granted ? 'connected' : 'disconnected');
+    setConnected(granted);
     setConnecting(false);
+    if (!granted) {
+      // refresh availability so we can show install hint if needed
+      checkAvailability().then(a => setAvail(a)).catch(() => {});
+    }
   }
 
-  const statusColor = status === 'connected' ? (t.semantic?.ok || '#34C759')
-                    : (status === 'unavailable' || status === 'not-installed') ? t.fgFaint
-                    : t.accent;
-
-  const statusLabel = {
-    checking: 'Verificando...',
-    'not-installed': 'Falta instalar app',
-    unavailable: 'No disponible',
-    disconnected: 'Listo para conectar',
-    connected: 'Conectado ✓',
-  }[status];
+  let statusLabel, statusColor;
+  if (connected)               { statusLabel = 'Conectado ✓';        statusColor = t.semantic?.ok || '#34C759'; }
+  else if (avail === 'web')    { statusLabel = 'Solo en Android';    statusColor = t.fgFaint; }
+  else if (avail === 'NotInstalled') { statusLabel = 'Falta instalar app'; statusColor = '#F59E0B'; }
+  else if (avail === 'NotSupported') { statusLabel = 'No compatible'; statusColor = t.fgFaint; }
+  else if (avail === 'Available')    { statusLabel = 'Listo';        statusColor = t.accent; }
+  else                          { statusLabel = `build ${APP_BUILD}`; statusColor = t.fgFaint; }
 
   return (
     <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>Health Connect</div>
+        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>
+          Health Connect <span style={{ fontFamily: t.fonts.mono, fontSize: 9, color: t.fgFaint }}>· {APP_BUILD}</span>
+        </div>
         <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, color: statusColor, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
           {statusLabel}
         </div>
@@ -1190,30 +1189,13 @@ function HealthConnectCard({ t }) {
         Conecta Google Health Connect para ver frecuencia cardíaca, sueño, pasos, calorías y peso en tu Dashboard y Bitácora.
       </div>
 
-      {status === 'not-installed' && (
+      {!native && (
         <div style={{ padding: '10px 12px', borderRadius: 10, background: t.s2, fontFamily: t.fonts.body, fontSize: 12, color: t.fgMuted }}>
-          Instala "Health Connect" desde la Play Store, ábrelo una vez, y vuelve aquí.
+          Esta función solo está disponible en la app instalada en tu teléfono Android.
         </div>
       )}
 
-      {status === 'unavailable' && (
-        <div style={{ padding: '10px 12px', borderRadius: 10, background: t.s2, fontFamily: t.fonts.body, fontSize: 12, color: t.fgMuted }}>
-          Solo disponible en la app instalada en Android. Si ya la instalaste, asegúrate de tener Health Connect en tu teléfono.
-        </div>
-      )}
-
-      {(status === 'disconnected' || status === 'checking') && (
-        <button onClick={connect} disabled={connecting || status === 'checking'} style={{
-          width: '100%', padding: '12px', borderRadius: 12, border: 'none',
-          background: t.accent, color: '#0A0908', cursor: 'pointer',
-          fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14,
-          opacity: (connecting || status === 'checking') ? 0.6 : 1,
-        }}>
-          {connecting ? 'Solicitando permisos...' : status === 'checking' ? 'Verificando...' : 'Conectar Health Connect'}
-        </button>
-      )}
-
-      {status === 'connected' && (
+      {native && connected && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {['RHR', 'Sueño', 'Pasos', 'Calorías', 'Peso'].map(m => (
             <div key={m} style={{ padding: '4px 10px', borderRadius: 8, background: (t.semantic?.ok || '#34C759') + '20', fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700, color: t.semantic?.ok || '#34C759', letterSpacing: '0.08em' }}>
@@ -1221,6 +1203,24 @@ function HealthConnectCard({ t }) {
             </div>
           ))}
         </div>
+      )}
+
+      {native && !connected && (
+        <>
+          <button onClick={connect} disabled={connecting} style={{
+            width: '100%', padding: '12px', borderRadius: 12, border: 'none',
+            background: t.accent, color: '#0A0908', cursor: 'pointer',
+            fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14,
+            opacity: connecting ? 0.6 : 1,
+          }}>
+            {connecting ? 'Solicitando permisos...' : 'Conectar Health Connect'}
+          </button>
+          {avail === 'NotInstalled' && (
+            <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 10, background: t.s2, fontFamily: t.fonts.body, fontSize: 12, color: t.fgMuted }}>
+              Instala "Health Connect" desde la Play Store, ábrelo una vez, y vuelve aquí.
+            </div>
+          )}
+        </>
       )}
     </div>
   );
