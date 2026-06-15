@@ -163,7 +163,7 @@ function EditMovementModal({ t, open, movement, onClose, onUpdate }) {
 // ─── Loading spinner ─────────────────────────────────────────────
 function LoadingScreen({ t }) {
   return (
-    <div style={{ width:'100vw', height:'100dvh', background:t.bg,
+    <div style={{ width:'100%', height:'100%', background:t.bg,
       display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style={{ fontFamily:t.fonts.mono, fontSize:11, fontWeight:700,
         letterSpacing:'0.2em', color:t.fgFaint, textTransform:'uppercase' }}>
@@ -187,7 +187,7 @@ export default function App() {
   if (!session) return <AuthScreen t={t}/>;
   if (!profile?.onboarded) {
     return (
-      <div style={{ width:'100vw', height:'100dvh', background:t.bg, overflow:'hidden' }}>
+      <div style={{ width:'100%', height:'100%', background:t.bg, overflow:'hidden' }}>
         <OnboardingScreen t={t} onNav={() => {}} onMenu={() => {}} onPlus={() => {}}/>
       </div>
     );
@@ -214,8 +214,8 @@ export default function App() {
 
   return (
     <div style={{
-      width: '100vw',
-      height: '100dvh',
+      width: '100%',
+      height: '100%',
       background: t.bg,
       display: 'flex',
       flexDirection: 'column',

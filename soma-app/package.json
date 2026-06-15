@@ -13,6 +13,7 @@
     "@capacitor/android": "^8.4.0",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
+    "@capacitor/status-bar": "^8.0.2",
     "@devmaxime/capacitor-health-connect": "^1.1.0",
     "@supabase/supabase-js": "^2.108.1",
     "react": "^19.2.6",

@@ -370,9 +370,26 @@ function MealsModal({ t, onClose }) {
 }
 
 // ─── EatScreen ───────────────────────────────────────────────────────
+const CAL_GOAL = 2200;
+const MACRO_GOALS = { protein: 165, carbs: 250, fat: 85 };
+
 export function EatScreen({ t, onNav, onMenu, onPlus }) {
   const [showPantry, setShowPantry] = useState(false);
   const [showMeals, setShowMeals]   = useState(false);
+
+  // Real pantry data
+  const pantry = (() => {
+    try { return JSON.parse(localStorage.getItem('soma_pantry') || '[]'); }
+    catch { return []; }
+  })();
+  const pantryTotal = pantry.length;
+  const pantryLow   = pantry.filter(p => p.stock === 2).length;
+  const pantryEmpty = pantry.filter(p => p.stock <= 1).length;
+  const shoppingNeeded = pantryLow + pantryEmpty;
+
+  // No meal logging yet → consumed is 0
+  const consumed = { kcal: 0, protein: 0, carbs: 0, fat: 0, water: 0 };
+  const remaining = CAL_GOAL - consumed.kcal;
 
   return (
     <ScreenFrame t={t} accentColor={t.pillar.eat}>
@@ -380,7 +397,7 @@ export function EatScreen({ t, onNav, onMenu, onPlus }) {
       <PillarHeader
         t={t}
         title="Come"
-        sub="358 kcal restantes"
+        sub={`${remaining} kcal restantes`}
         pillarColor={t.pillar.eat}
         onMenu={onMenu}
       />
@@ -403,18 +420,18 @@ export function EatScreen({ t, onNav, onMenu, onPlus }) {
 
           {/* Donut + info side by side */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <DonutChart t={t} protein={0.43} carbs={0.34} fat={0.23}/>
+            <DonutChart t={t} protein={0.001} carbs={0.001} fat={0.001}/>
 
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 44,
                 letterSpacing: '-0.05em', lineHeight: 1, color: '#0A0908' }}>
-                358
+                {remaining}
               </div>
               <div style={{ fontFamily: t.fonts.body, fontSize: 11.5, fontWeight: 600,
                 color: '#0A0908AA', marginTop: 2 }}>kcal restantes</div>
               <div style={{ fontFamily: t.fonts.mono, fontSize: 10, fontWeight: 700,
                 color: '#0A0908AA', marginTop: 6, letterSpacing: '-0.01em' }}>
-                1842 de 2200 · 84%
+                {consumed.kcal} de {CAL_GOAL} · {Math.round((consumed.kcal / CAL_GOAL) * 100)}%
               </div>
             </div>
           </div>
@@ -422,15 +439,15 @@ export function EatScreen({ t, onNav, onMenu, onPlus }) {
           {/* Macro chips */}
           <div style={{ display: 'flex', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
             <MacroChip t={t} Icon={IconProtein} label="Proteína"
-              current={142} goal={165} color={t.secondary}/>
+              current={consumed.protein} goal={MACRO_GOALS.protein} color={t.secondary}/>
             <MacroChip t={t} Icon={IconCarbs}   label="Carbs"
-              current={220} goal={250} color={t.tertiary}/>
+              current={consumed.carbs} goal={MACRO_GOALS.carbs} color={t.tertiary}/>
             <MacroChip t={t} Icon={IconFat}     label="Grasa"
-              current={78}  goal={85}  color="#0A0908BB"/>
+              current={consumed.fat}  goal={MACRO_GOALS.fat}  color="#0A0908BB"/>
           </div>
 
           {/* Water bar */}
-          <WaterBar t={t} total={8} filled={5}/>
+          <WaterBar t={t} total={8} filled={consumed.water}/>
         </div>
 
         {/* ── Quick add bar ── */}
@@ -476,9 +493,9 @@ export function EatScreen({ t, onNav, onMenu, onPlus }) {
         {/* Stats row */}
         <div style={{ margin: '10px 20px 0', display: 'flex', gap: 8 }}>
           {[
-            { lab: 'TOTAL', val: '10', color: t.fgMuted },
-            { lab: 'BAJOS', val: '2',  color: t.semantic.mid },
-            { lab: 'AGOTADOS', val: '1', color: t.semantic.low },
+            { lab: 'TOTAL', val: String(pantryTotal), color: t.fgMuted },
+            { lab: 'BAJOS', val: String(pantryLow),  color: t.semantic.mid },
+            { lab: 'AGOTADOS', val: String(pantryEmpty), color: t.semantic.low },
           ].map(s => (
             <div key={s.lab} style={{ flex: 1, background: t.surface,
               border: `1px solid ${t.divider}`, borderRadius: 10,
@@ -495,10 +512,10 @@ export function EatScreen({ t, onNav, onMenu, onPlus }) {
         {/* 2-col pantry grid preview */}
         <div style={{ margin: '10px 20px 0', display: 'grid',
           gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {(JSON.parse(localStorage.getItem('soma_pantry') || '[]')).slice(0, 4).map((p) => (
+          {pantry.slice(0, 4).map((p) => (
             <PantryItem key={p.id} t={t} name={p.name} stock={p.stock}/>
           ))}
-          {(JSON.parse(localStorage.getItem('soma_pantry') || '[]')).length === 0 && (
+          {pantry.length === 0 && (
             <div style={{
               gridColumn: '1 / -1', textAlign: 'center', padding: '20px 0',
               fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgFaint,
@@ -525,7 +542,7 @@ export function EatScreen({ t, onNav, onMenu, onPlus }) {
             <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13.5,
               color: t.fg }}>Lista de compras</div>
             <div style={{ fontFamily: t.fonts.body, fontSize: 11, color: t.fgMuted, marginTop: 1 }}>
-              3 artículos pendientes
+              {shoppingNeeded === 0 ? 'Despensa al día' : `${shoppingNeeded} artículo${shoppingNeeded > 1 ? 's' : ''} pendiente${shoppingNeeded > 1 ? 's' : ''}`}
             </div>
           </div>
           <span style={{ fontFamily: t.fonts.mono, fontSize: 18, fontWeight: 700,
