@@ -30,6 +30,25 @@ export async function requestPermissions() {
   }
 }
 
+// Verbose variant for diagnostics: returns { granted, granted_count, availability, error }
+export async function requestPermissionsVerbose() {
+  if (!isNative()) return { granted: false, availability: 'web', error: 'No es plataforma nativa' };
+  let availability = 'unknown';
+  try {
+    const a = await HealthConnect.checkAvailability();
+    availability = a?.availability || 'unknown';
+  } catch (e) {
+    availability = 'check-failed';
+  }
+  try {
+    const res = await HealthConnect.requestPermissions({ read: READ_TYPES, write: WRITE_TYPES });
+    const count = res?.read?.length || 0;
+    return { granted: count > 0, granted_count: count, availability, error: null };
+  } catch (e) {
+    return { granted: false, granted_count: 0, availability, error: (e && (e.message || String(e))) || 'error desconocido' };
+  }
+}
+
 export async function getGrantedPermissions() {
   if (!isNative()) return [];
   try {

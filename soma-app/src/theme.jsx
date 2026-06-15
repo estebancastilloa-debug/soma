@@ -40,14 +40,15 @@ const NEUTRALS = {
 
 const SEMANTIC = { ok:'#7BD89A', mid:'#F5C84B', low:'#EF6B5C' };
 
-function computeTokens({ mode = 'dark', intensityId = 'vivid' }) {
+function computeTokens({ mode = 'dark', intensityId = 'vivid', accentId = 'lime' }) {
   const p = buildPalette(intensityId);
   const n = NEUTRALS[mode] || NEUTRALS.dark;
   const isMono = intensityId === 'mono';
-  const primary = isMono ? n.fg : p.lime;
+  const accentMap = { lime: p.lime, blue: p.blue, coral: p.coral };
+  const primary = isMono ? n.fg : (accentMap[accentId] || p.lime);
   const onPrimary = isMono ? n.bg : '#0A0908';
   return {
-    mode, intensityId,
+    mode, intensityId, accentId,
     ...n,
     accent: primary, onAccent: onPrimary,
     primary, onPrimary,
@@ -82,6 +83,9 @@ export function ThemeProvider({ children }) {
   const [intensityId, setIntensityId] = useState(() => {
     try { return localStorage.getItem('soma_theme_intensity') || 'calm'; } catch { return 'calm'; }
   });
+  const [accentId, setAccentId] = useState(() => {
+    try { return localStorage.getItem('soma_theme_accent') || 'lime'; } catch { return 'lime'; }
+  });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', mode);
@@ -89,13 +93,14 @@ export function ThemeProvider({ children }) {
     try {
       localStorage.setItem('soma_theme_mode', mode);
       localStorage.setItem('soma_theme_intensity', intensityId);
+      localStorage.setItem('soma_theme_accent', accentId);
     } catch {}
-  }, [mode, intensityId]);
+  }, [mode, intensityId, accentId]);
 
-  const t = computeTokens({ mode, intensityId });
+  const t = computeTokens({ mode, intensityId, accentId });
 
   return (
-    <ThemeContext.Provider value={{ mode, setMode, intensityId, setIntensityId, t }}>
+    <ThemeContext.Provider value={{ mode, setMode, intensityId, setIntensityId, accentId, setAccentId, t }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -109,4 +114,11 @@ export const INTENSITIES = {
   vivid: { id: 'vivid', label: 'Vivid · electric', note: 'paleta original, máxima intensidad' },
   calm:  { id: 'calm',  label: 'Calm · soft',      note: 'mismos colores, menos saturados' },
   mono:  { id: 'mono',  label: 'Mono · sin color',  note: 'solo neutros, la marca es tipografía' },
+};
+
+// Accent color options. Hex previews shown at both intensities for the picker.
+export const ACCENTS = {
+  lime:  { id: 'lime',  label: 'Verde',   vivid: 'hsl(72 78% 60%)',  calm: 'hsl(72 36% 66%)'  },
+  blue:  { id: 'blue',  label: 'Azul',    vivid: 'hsl(215 100% 68%)', calm: 'hsl(215 58% 74%)' },
+  coral: { id: 'coral', label: 'Naranja', vivid: 'hsl(18 100% 58%)',  calm: 'hsl(18 58% 64%)'  },
 };

@@ -5,10 +5,10 @@ import {
   StatusBar, MonoLabel, ScreenFrame, Fab, PillarHeader,
 } from '../chrome.jsx';
 import { F5, WordmarkWithMark } from '../marks.jsx';
-import { checkAvailability, requestPermissions } from '../lib/healthConnect.js';
-import { useTheme, INTENSITIES } from '../theme.jsx';
+import { checkAvailability, requestPermissions, requestPermissionsVerbose } from '../lib/healthConnect.js';
+import { useTheme, INTENSITIES, ACCENTS } from '../theme.jsx';
 
-const APP_BUILD = 'b3';
+const APP_BUILD = 'b4';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -1167,17 +1167,9 @@ function GoalsCard({ t }) {
 // ─── Theme card ───────────────────────────────────────────────────────────────
 
 function ThemeCard({ t }) {
-  const { mode, setMode, intensityId, setIntensityId } = useTheme();
-
-  const swatch = (id) => {
-    // small preview of the 3 brand colors at the given intensity
-    const map = {
-      vivid: ['hsl(72 78% 60%)', 'hsl(18 100% 58%)', 'hsl(215 100% 68%)'],
-      calm:  ['hsl(72 36% 66%)', 'hsl(18 58% 64%)',  'hsl(215 58% 74%)'],
-      mono:  [t.fg, t.fgMuted, t.fgFaint],
-    };
-    return map[id] || map.vivid;
-  };
+  const { mode, setMode, intensityId, setIntensityId, accentId, setAccentId } = useTheme();
+  const isMono = intensityId === 'mono';
+  const previewIntensity = intensityId === 'vivid' ? 'vivid' : 'calm';
 
   return (
     <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
@@ -1203,13 +1195,45 @@ function ThemeCard({ t }) {
         ))}
       </div>
 
+      {/* Accent color */}
+      <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.fgFaint, marginBottom: 8 }}>
+        Color de acento
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, opacity: isMono ? 0.4 : 1 }}>
+        {Object.values(ACCENTS).map(a => {
+          const on = accentId === a.id && !isMono;
+          const color = a[previewIntensity];
+          return (
+            <button key={a.id} onClick={() => setAccentId(a.id)} disabled={isMono} style={{
+              flex: 1, padding: '10px 6px', borderRadius: 12,
+              cursor: isMono ? 'default' : 'pointer',
+              border: `1.5px solid ${on ? color : t.border}`,
+              background: on ? color + '20' : t.s2,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: color, border: on ? `2px solid ${t.fg}` : 'none' }}/>
+              <span style={{ fontFamily: t.fonts.body, fontSize: 11.5, fontWeight: on ? 700 : 500, color: on ? t.fg : t.fgMuted }}>{a.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {isMono && (
+        <div style={{ fontFamily: t.fonts.body, fontSize: 10.5, color: t.fgFaint, marginTop: -10, marginBottom: 16 }}>
+          El modo Mono no usa color. Cambia la intensidad para elegir un acento.
+        </div>
+      )}
+
       {/* Intensity / palette */}
       <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.fgFaint, marginBottom: 8 }}>
-        Intensidad de color
+        Intensidad
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {Object.values(INTENSITIES).map(opt => {
           const on = intensityId === opt.id;
+          // preview swatches: the chosen accent at this intensity (or neutrals for mono)
+          const swatches = opt.id === 'mono'
+            ? [t.fg, t.fgMuted, t.fgFaint]
+            : Object.values(ACCENTS).map(a => a[opt.id === 'vivid' ? 'vivid' : 'calm']);
           return (
             <button key={opt.id} onClick={() => setIntensityId(opt.id)} style={{
               width: '100%', padding: '11px 12px', borderRadius: 12, cursor: 'pointer',
@@ -1218,7 +1242,7 @@ function ThemeCard({ t }) {
               display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
             }}>
               <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-                {swatch(opt.id).map((c, i) => (
+                {swatches.map((c, i) => (
                   <div key={i} style={{ width: 14, height: 14, borderRadius: '50%', background: c }}/>
                 ))}
               </div>
@@ -1250,14 +1274,18 @@ function HealthConnectCard({ t }) {
     checkAvailability().then(a => setAvail(a)).catch(() => setAvail('error'));
   }, [native]);
 
+  const [diag, setDiag] = useState(null);
+
   async function connect() {
     setConnecting(true);
-    const granted = await requestPermissions();
-    setConnected(granted);
+    const r = await requestPermissionsVerbose();
     setConnecting(false);
-    if (!granted) {
-      // refresh availability so we can show install hint if needed
-      checkAvailability().then(a => setAvail(a)).catch(() => {});
+    setConnected(r.granted);
+    setAvail(r.availability);
+    if (!r.granted) {
+      setDiag(`Disponibilidad: ${r.availability}` + (r.error ? ` · Error: ${r.error}` : ` · permisos otorgados: ${r.granted_count ?? 0}`));
+    } else {
+      setDiag(null);
     }
   }
 
@@ -1312,6 +1340,12 @@ function HealthConnectCard({ t }) {
           {avail === 'NotInstalled' && (
             <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 10, background: t.s2, fontFamily: t.fonts.body, fontSize: 12, color: t.fgMuted }}>
               Instala "Health Connect" desde la Play Store, ábrelo una vez, y vuelve aquí.
+            </div>
+          )}
+          {diag && (
+            <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 10, background: '#F59E0B18', border: '1px solid #F59E0B55', fontFamily: t.fonts.mono, fontSize: 10.5, color: t.fg, lineHeight: 1.5, wordBreak: 'break-word' }}>
+              <div style={{ fontWeight: 700, color: '#F59E0B', marginBottom: 4 }}>DIAGNÓSTICO</div>
+              {diag}
             </div>
           )}
         </>
