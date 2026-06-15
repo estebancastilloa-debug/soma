@@ -8,7 +8,7 @@ import { F5, WordmarkWithMark } from '../marks.jsx';
 import { checkAvailability, requestPermissions, requestPermissionsVerbose } from '../lib/healthConnect.js';
 import { useTheme, INTENSITIES, ACCENTS } from '../theme.jsx';
 
-const APP_BUILD = 'b4';
+const APP_BUILD = 'b5';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -781,6 +781,54 @@ const SKILL_LEVELS = [
 
 const PR_REPS = [1, 2, 3, 5, 10];
 
+// Each skill group tracks PRs differently
+const GROUP_METRIC = {
+  'HALTEROFILIA':     'weight',
+  'FUERZA':           'weight',
+  'GYMNASTICS':       'reps',
+  'CARDIO & SKILLS':  'time',
+};
+function metricForSkill(skill) {
+  const g = SKILL_GROUPS.find(gr => gr.skills.includes(skill));
+  return GROUP_METRIC[g?.group] || 'weight';
+}
+
+// time helpers (value stored in seconds)
+function parseTime(str) {
+  if (!str) return null;
+  const s = String(str).trim();
+  if (s.includes(':')) {
+    const [m, sec] = s.split(':');
+    const total = (parseInt(m, 10) || 0) * 60 + (parseInt(sec, 10) || 0);
+    return total > 0 ? total : null;
+  }
+  const n = parseFloat(s);
+  return isNaN(n) || n <= 0 ? null : Math.round(n);
+}
+function formatTime(seconds) {
+  if (seconds == null) return '';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// short summary chip for a skill row
+function prSummary(skill, skillPrs) {
+  if (!skillPrs) return null;
+  const metric = metricForSkill(skill);
+  if (metric === 'weight') {
+    const best = skillPrs['1'] || skillPrs[1];
+    return best ? `${best.value}${skillPrs.unit || 'kg'}` : null;
+  }
+  if (metric === 'reps') {
+    return skillPrs.reps ? `${skillPrs.reps.value} reps` : null;
+  }
+  if (metric === 'time') {
+    return skillPrs.time ? formatTime(skillPrs.time.value) : null;
+  }
+  return null;
+}
+
 function SkillsCard({ t }) {
   const [skills, setSkills] = useState(() => {
     try { return JSON.parse(localStorage.getItem(LS_MOVEMENTS) || '{}'); }
@@ -790,6 +838,9 @@ function SkillsCard({ t }) {
   const [activeGroup, setActiveGroup] = useState(SKILL_GROUPS[0].group);
   const [prSkill, setPrSkill] = useState(null); // skill name whose PR sheet is open
   const [prInputs, setPrInputs] = useState({}); // temp input values in the PR sheet
+  const [prUnit, setPrUnit] = useState('kg');   // weight unit in the sheet
+
+  const today = () => new Date().toISOString().slice(0, 10);
 
   function cycleLevel(skill) {
     const cur = skills[skill] || 0;
@@ -800,29 +851,61 @@ function SkillsCard({ t }) {
 
   function openPrSheet(skill) {
     const existing = prs[skill] || {};
+    const metric = metricForSkill(skill);
     const inputs = {};
-    PR_REPS.forEach(r => { inputs[r] = existing[r]?.value ?? ''; });
+    if (metric === 'weight') {
+      PR_REPS.forEach(r => { inputs[r] = existing[r]?.value ?? ''; });
+      setPrUnit(existing.unit || 'kg');
+    } else if (metric === 'reps') {
+      inputs.reps = existing.reps?.value ?? '';
+    } else if (metric === 'time') {
+      inputs.time = existing.time ? formatTime(existing.time.value) : '';
+    }
     setPrInputs(inputs);
     setPrSkill(skill);
   }
 
   function savePrs() {
-    const existing = prs[prSkill] || {};
-    const updated = { ...existing };
-    PR_REPS.forEach(r => {
-      const val = parseFloat(prInputs[r]);
+    const skill = prSkill;
+    const metric = metricForSkill(skill);
+    const existing = prs[skill] || {};
+    let updated = { ...existing };
+
+    if (metric === 'weight') {
+      updated.unit = prUnit;
+      PR_REPS.forEach(r => {
+        const val = parseFloat(prInputs[r]);
+        if (!isNaN(val) && val > 0) {
+          const prev = existing[r];
+          const isNew = !prev || val > prev.value;
+          updated[r] = { value: val, date: isNew ? today() : prev.date };
+        }
+      });
+    } else if (metric === 'reps') {
+      const val = parseInt(prInputs.reps, 10);
       if (!isNaN(val) && val > 0) {
-        const isNew = !existing[r] || val > existing[r].value;
-        updated[r] = { value: val, date: isNew ? new Date().toISOString().slice(0,10) : existing[r].date };
+        const prev = existing.reps;
+        const isNew = !prev || val > prev.value;
+        updated.reps = { value: val, date: isNew ? today() : prev.date };
       }
-    });
-    const nextPrs = { ...prs, [prSkill]: updated };
+    } else if (metric === 'time') {
+      const val = parseTime(prInputs.time);
+      if (val != null) {
+        const prev = existing.time;
+        const isNew = !prev || val < prev.value; // lower time is better
+        updated.time = { value: val, date: isNew ? today() : prev.date };
+      }
+    }
+
+    const nextPrs = { ...prs, [skill]: updated };
     setPrs(nextPrs);
     saveSkillPrs(nextPrs);
     setPrSkill(null);
   }
 
   const group = SKILL_GROUPS.find(g => g.group === activeGroup);
+  const sheetMetric = prSkill ? metricForSkill(prSkill) : null;
+  const metricLabel = { weight: 'PESO', reps: 'REPS MÁX', time: 'MEJOR TIEMPO' }[sheetMetric] || '';
 
   return (
     <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
@@ -846,6 +929,13 @@ function SkillsCard({ t }) {
         ))}
       </div>
 
+      {/* Metric hint for active group */}
+      <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, color: t.fgFaint, letterSpacing: '0.1em', marginBottom: 10, textTransform: 'uppercase' }}>
+        {GROUP_METRIC[activeGroup] === 'weight' ? 'PR por peso · 1·2·3·5·10 RM'
+          : GROUP_METRIC[activeGroup] === 'reps' ? 'PR por reps máximas'
+          : 'PR por mejor tiempo'}
+      </div>
+
       {/* Skill level legend */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
         {SKILL_LEVELS.map((lv, i) => (
@@ -865,8 +955,9 @@ function SkillsCard({ t }) {
         {group?.skills.map(skill => {
           const level = skills[skill] || 0;
           const lv = SKILL_LEVELS[level];
-          const skillPrs = prs[skill] || {};
-          const bestPr = skillPrs[1]; // 1RM
+          const skillPrs = prs[skill] || null;
+          const summary = prSummary(skill, skillPrs);
+          const hasPr = !!summary;
           return (
             <div key={skill} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button onClick={() => cycleLevel(skill)} style={{
@@ -883,12 +974,12 @@ function SkillsCard({ t }) {
                 <span style={{ flex: 1, fontFamily: t.fonts.body, fontSize: 13, color: level > 0 ? t.fg : t.fgMuted, fontWeight: level > 0 ? 600 : 400 }}>
                   {skill}
                 </span>
-                {bestPr && (
+                {hasPr && (
                   <span style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, color: group.col, letterSpacing: '0.04em', flexShrink: 0 }}>
-                    {bestPr.value}kg
+                    {summary}
                   </span>
                 )}
-                {!bestPr && level > 0 && (
+                {!hasPr && level > 0 && (
                   <span style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, color: lv.color || group.col, letterSpacing: '0.06em', flexShrink: 0 }}>
                     {lv.label}
                   </span>
@@ -896,9 +987,9 @@ function SkillsCard({ t }) {
               </button>
               <button onClick={() => openPrSheet(skill)} style={{
                 width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                border: `1px solid ${Object.keys(skillPrs).length > 0 ? group.col : t.border}`,
-                background: Object.keys(skillPrs).length > 0 ? group.col + '20' : 'transparent',
-                color: Object.keys(skillPrs).length > 0 ? group.col : t.fgFaint,
+                border: `1px solid ${hasPr ? group.col : t.border}`,
+                background: hasPr ? group.col + '20' : 'transparent',
+                color: hasPr ? group.col : t.fgFaint,
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: t.fonts.mono, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
               }}>
@@ -924,44 +1015,120 @@ function SkillsCard({ t }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
                 <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16, color: t.fg }}>{prSkill}</div>
-                <div style={{ fontFamily: t.fonts.mono, fontSize: 9, color: t.fgFaint, letterSpacing: '0.14em', marginTop: 2 }}>ALL-TIME PRs · KG</div>
+                <div style={{ fontFamily: t.fonts.mono, fontSize: 9, color: t.fgFaint, letterSpacing: '0.14em', marginTop: 2 }}>ALL-TIME PR · {metricLabel}</div>
               </div>
               <button onClick={() => setPrSkill(null)} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: t.surface, color: t.fg, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {PR_REPS.map(r => {
-                const saved = prs[prSkill]?.[r];
-                return (
-                  <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 36, fontFamily: t.fonts.mono, fontSize: 13, fontWeight: 700, color: t.fgMuted, textAlign: 'right', flexShrink: 0 }}>
-                      {r}RM
-                    </div>
-                    <input
-                      type="number"
-                      value={prInputs[r] ?? ''}
-                      onChange={e => setPrInputs(prev => ({ ...prev, [r]: e.target.value }))}
-                      placeholder={saved ? String(saved.value) : '—'}
-                      style={{
-                        flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${t.border}`,
-                        background: t.surface, color: t.fg, fontFamily: t.fonts.mono, fontSize: 15, fontWeight: 700, outline: 'none',
-                      }}
-                    />
-                    {saved && (
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontFamily: t.fonts.mono, fontSize: 13, fontWeight: 700, color: t.accent }}>{saved.value} kg</div>
-                        <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, color: t.fgFaint }}>{saved.date}</div>
+
+            {/* WEIGHT: unit toggle + rep-max table */}
+            {sheetMetric === 'weight' && (
+              <>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                  {['kg', 'lbs'].map(u => (
+                    <button key={u} onClick={() => setPrUnit(u)} style={{
+                      flex: 1, padding: '9px', borderRadius: 10, cursor: 'pointer',
+                      border: `1px solid ${prUnit === u ? t.accent : t.border}`,
+                      background: prUnit === u ? t.accent + '18' : t.s2,
+                      color: prUnit === u ? t.fg : t.fgMuted,
+                      fontFamily: t.fonts.body, fontWeight: prUnit === u ? 700 : 500, fontSize: 13,
+                    }}>{u}</button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                  {PR_REPS.map(r => {
+                    const saved = prs[prSkill]?.[r];
+                    return (
+                      <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 36, fontFamily: t.fonts.mono, fontSize: 13, fontWeight: 700, color: t.fgMuted, textAlign: 'right', flexShrink: 0 }}>
+                          {r}RM
+                        </div>
+                        <input
+                          type="number" inputMode="decimal"
+                          value={prInputs[r] ?? ''}
+                          onChange={e => setPrInputs(prev => ({ ...prev, [r]: e.target.value }))}
+                          placeholder={saved ? String(saved.value) : '—'}
+                          style={{
+                            flex: 1, padding: '10px 12px', borderRadius: 10, border: `1px solid ${t.border}`,
+                            background: t.surface, color: t.fg, fontFamily: t.fonts.mono, fontSize: 15, fontWeight: 700, outline: 'none',
+                          }}
+                        />
+                        {saved && (
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontFamily: t.fonts.mono, fontSize: 13, fontWeight: 700, color: t.accent }}>{saved.value} {prs[prSkill]?.unit || 'kg'}</div>
+                            <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, color: t.fgFaint }}>{saved.date}</div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* REPS: single max reps */}
+            {sheetMetric === 'reps' && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, marginBottom: 8 }}>
+                  Máximo de repeticiones sin parar
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <input
+                    type="number" inputMode="numeric"
+                    value={prInputs.reps ?? ''}
+                    onChange={e => setPrInputs(prev => ({ ...prev, reps: e.target.value }))}
+                    placeholder={prs[prSkill]?.reps ? String(prs[prSkill].reps.value) : 'ej. 25'}
+                    style={{
+                      flex: 1, padding: '12px', borderRadius: 10, border: `1px solid ${t.border}`,
+                      background: t.surface, color: t.fg, fontFamily: t.fonts.mono, fontSize: 18, fontWeight: 700, outline: 'none',
+                    }}
+                  />
+                  <span style={{ fontFamily: t.fonts.mono, fontSize: 13, fontWeight: 700, color: t.fgMuted }}>reps</span>
+                  {prs[prSkill]?.reps && (
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: t.fonts.mono, fontSize: 13, fontWeight: 700, color: t.accent }}>{prs[prSkill].reps.value}</div>
+                      <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, color: t.fgFaint }}>{prs[prSkill].reps.date}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TIME: best time */}
+            {sheetMetric === 'time' && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, marginBottom: 8 }}>
+                  Mejor tiempo (minutos:segundos)
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <input
+                    type="text" inputMode="numeric"
+                    value={prInputs.time ?? ''}
+                    onChange={e => setPrInputs(prev => ({ ...prev, time: e.target.value }))}
+                    placeholder={prs[prSkill]?.time ? formatTime(prs[prSkill].time.value) : 'ej. 3:45'}
+                    style={{
+                      flex: 1, padding: '12px', borderRadius: 10, border: `1px solid ${t.border}`,
+                      background: t.surface, color: t.fg, fontFamily: t.fonts.mono, fontSize: 18, fontWeight: 700, outline: 'none',
+                    }}
+                  />
+                  {prs[prSkill]?.time && (
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: t.fonts.mono, fontSize: 13, fontWeight: 700, color: t.accent }}>{formatTime(prs[prSkill].time.value)}</div>
+                      <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, color: t.fgFaint }}>{prs[prSkill].time.date}</div>
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontFamily: t.fonts.body, fontSize: 10.5, color: t.fgFaint, marginTop: 6 }}>
+                  Menor tiempo = mejor récord
+                </div>
+              </div>
+            )}
+
             <button onClick={savePrs} style={{
               width: '100%', padding: '13px', borderRadius: 14, border: 'none',
               background: t.accent, color: '#0A0908', cursor: 'pointer',
               fontFamily: t.fonts.body, fontWeight: 700, fontSize: 15,
             }}>
-              Guardar PRs
+              Guardar PR
             </button>
           </div>
         </div>
