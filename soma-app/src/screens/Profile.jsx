@@ -4,6 +4,7 @@ import {
   StatusBar, MonoLabel, ScreenFrame, Fab, PillarHeader,
 } from '../chrome.jsx';
 import { F5, WordmarkWithMark } from '../marks.jsx';
+import { checkAvailability, requestPermissions } from '../lib/healthConnect.js';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -1107,6 +1108,70 @@ function GoalsCard({ t }) {
   );
 }
 
+// ─── Health Connect card ──────────────────────────────────────────────────────
+
+function HealthConnectCard({ t }) {
+  const [status, setStatus] = useState('checking'); // checking|unavailable|disconnected|connected
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    checkAvailability().then(avail => {
+      setStatus(avail === 'Available' ? 'disconnected' : 'unavailable');
+    });
+  }, []);
+
+  async function connect() {
+    setConnecting(true);
+    const granted = await requestPermissions();
+    setStatus(granted ? 'connected' : 'disconnected');
+    setConnecting(false);
+  }
+
+  const statusColor = status === 'connected' ? (t.semantic?.ok || '#34C759')
+                    : status === 'unavailable' ? t.fgFaint
+                    : t.accent;
+
+  const statusLabel = { checking: 'Verificando...', unavailable: 'No disponible — instala Health Connect', disconnected: 'No conectado', connected: 'Conectado ✓' }[status];
+
+  return (
+    <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>Health Connect</div>
+        <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, color: statusColor, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          {statusLabel}
+        </div>
+      </div>
+      <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, lineHeight: 1.5, marginBottom: 12 }}>
+        Conecta Google Health Connect para ver HRV, frecuencia cardíaca, sueño, pasos y peso en tu Dashboard y Bitácora.
+      </div>
+      {status === 'unavailable' && (
+        <div style={{ padding: '10px 12px', borderRadius: 10, background: t.s2, fontFamily: t.fonts.body, fontSize: 12, color: t.fgMuted }}>
+          Instala "Health Connect" desde la Play Store y vuelve aquí.
+        </div>
+      )}
+      {status === 'disconnected' && (
+        <button onClick={connect} disabled={connecting} style={{
+          width: '100%', padding: '11px', borderRadius: 12, border: 'none',
+          background: t.accent, color: '#0A0908', cursor: 'pointer',
+          fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14,
+          opacity: connecting ? 0.6 : 1,
+        }}>
+          {connecting ? 'Solicitando permisos...' : 'Conectar Health Connect'}
+        </button>
+      )}
+      {status === 'connected' && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {['HRV', 'RHR', 'Sueño', 'Pasos', 'Peso', 'Calorías'].map(m => (
+            <div key={m} style={{ padding: '4px 10px', borderRadius: 8, background: (t.semantic?.ok || '#34C759') + '20', fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700, color: t.semantic?.ok || '#34C759', letterSpacing: '0.08em' }}>
+              {m}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
@@ -1207,6 +1272,11 @@ export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
         {/* ── Metas ── */}
         <div style={{ marginTop: 4 }}>
           <GoalsCard t={t} />
+        </div>
+
+        {/* ── Health Connect ── */}
+        <div style={{ marginTop: 4 }}>
+          <HealthConnectCard t={t} />
         </div>
 
         {/* ── Sign out ── */}

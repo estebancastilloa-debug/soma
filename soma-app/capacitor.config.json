@@ -1,5 +1,15 @@
 {
   "appId": "com.soma.app",
   "appName": "SOMA",
-  "webDir": "dist"
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#0A0908"
+  },
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": false,
+      "style": "DARK",
+      "backgroundColor": "#0A0908"
+    }
+  }
 }
