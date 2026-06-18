@@ -3,9 +3,17 @@ import { supabase } from '../lib/supabase.js';
 
 const AuthContext = createContext(null);
 
+const LS_PROFILE = 'soma_profile';
+function loadLocalProfile() {
+  try { return JSON.parse(localStorage.getItem(LS_PROFILE) || 'null'); } catch { return null; }
+}
+function saveLocalProfile(p) {
+  try { localStorage.setItem(LS_PROFILE, JSON.stringify(p)); } catch {}
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined); // undefined = loading
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(() => loadLocalProfile()); // instant from cache
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -28,34 +36,40 @@ export function AuthProvider({ children }) {
       .select('*')
       .eq('id', userId)
       .maybeSingle();
-    setProfile(data);
+    // Merge: cloud as base, local overlay (keeps offline edits + extra fields like age)
+    const local = loadLocalProfile() || {};
+    const merged = { ...(data || {}), ...local };
+    setProfile(merged);
+    saveLocalProfile(merged);
   }
 
   async function saveProfile(updates) {
-    if (!session?.user?.id) return { error: new Error('No active session') };
+    // 1) Persist locally + update state immediately (always works, even offline)
+    const merged = { ...(profile || {}), ...updates };
+    saveLocalProfile(merged);
+    setProfile(merged);
 
-    // Call SECURITY DEFINER RPC to bypass RLS
-    const { error } = await supabase.rpc('save_profile', {
-      p_name:         updates.name         ?? null,
-      p_weight_kg:    updates.weight_kg    ?? null,
-      p_height_cm:    updates.height_cm    ?? null,
-      p_goal:         updates.goal         ?? null,
-      p_experience:   updates.experience   ?? null,
-      p_days_per_week: updates.days_per_week ?? null,
-      p_time_of_day:  updates.time_of_day  ?? null,
-      p_rhr:          updates.rhr          ?? null,
-      p_onboarded:    updates.onboarded    ?? false,
-    });
-
-    if (!error) {
-      // Reload fresh profile from DB so App re-renders and exits onboarding
-      await loadProfile(session.user.id);
+    // 2) Best-effort cloud sync (only the fields the RPC supports)
+    if (session?.user?.id) {
+      try {
+        await supabase.rpc('save_profile', {
+          p_name:         merged.name         ?? null,
+          p_weight_kg:    merged.weight_kg    ?? null,
+          p_height_cm:    merged.height_cm    ?? null,
+          p_goal:         merged.goal         ?? null,
+          p_experience:   merged.experience   ?? null,
+          p_days_per_week: merged.days_per_week ?? null,
+          p_time_of_day:  merged.time_of_day  ?? null,
+          p_rhr:          merged.rhr          ?? null,
+          p_onboarded:    merged.onboarded    ?? false,
+        });
+      } catch { /* offline — local copy keeps the data */ }
     }
-
-    return { error };
+    return { error: null };
   }
 
   async function signOut() {
+    try { localStorage.removeItem(LS_PROFILE); } catch {}
     await supabase.auth.signOut();
   }
 

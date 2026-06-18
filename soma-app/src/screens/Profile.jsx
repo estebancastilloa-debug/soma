@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   StatusBar, MonoLabel, ScreenFrame, Fab, PillarHeader, DragHandle, useSwipeDown,
@@ -9,7 +10,7 @@ import { F5, WordmarkWithMark } from '../marks.jsx';
 import { checkAvailability, requestPermissions, requestPermissionsVerbose } from '../lib/healthConnect.js';
 import { useTheme, INTENSITIES, ACCENTS } from '../theme.jsx';
 
-const APP_BUILD = 'b13';
+const APP_BUILD = 'b14';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -1646,121 +1647,315 @@ function HealthConnectCard({ t }) {
   );
 }
 
+// ─── Personal info (clean read/edit, localStorage-first) ───────────────────────
+
+const GOAL_LABELS = { muscle: 'Ganar músculo', fat: 'Perder grasa', perf: 'Rendimiento', health: 'Salud general' };
+const TIME_LABELS = { morning: 'Mañana', afternoon: 'Tarde', night: 'Noche' };
+
+function PersonalInfoCard({ t, profile, saveProfile }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [name, setName]       = useState('');
+  const [age, setAge]         = useState('');
+  const [weight, setWeight]   = useState('');
+  const [weightUnit, setWeightUnit] = useState('kg');
+  const [height, setHeight]   = useState('');
+  const [heightUnit, setHeightUnit] = useState('cm');
+  const [goal, setGoal]       = useState([]);
+  const [days, setDays]       = useState(null);
+  const [timeOfDay, setTimeOfDay] = useState(null);
+
+  function openEdit() {
+    setName(profile?.name || '');
+    setAge(profile?.age ? String(profile.age) : '');
+    setWeight(profile?.weight_kg ? String(profile.weight_kg) : '');
+    setWeightUnit('kg');
+    setHeight(profile?.height_cm ? String(profile.height_cm) : '');
+    setHeightUnit('cm');
+    setGoal(profile?.goal ? profile.goal.split(',').filter(Boolean) : []);
+    setDays(profile?.days_per_week || null);
+    setTimeOfDay(profile?.time_of_day || null);
+    setEditing(true);
+  }
+
+  function changeWeightUnit(next) {
+    if (next === weightUnit) return;
+    const n = parseFloat(weight);
+    if (!isNaN(n)) setWeight(String(Math.round((next === 'lbs' ? n / 0.453592 : n * 0.453592) * 10) / 10));
+    setWeightUnit(next);
+  }
+  function changeHeightUnit(next) {
+    if (next === heightUnit) return;
+    const n = parseFloat(height);
+    if (!isNaN(n)) setHeight(String(Math.round((next === 'in' ? n / 2.54 : n * 2.54) * 10) / 10));
+    setHeightUnit(next);
+  }
+  function toggleGoal(id) { setGoal(p => p.includes(id) ? p.filter(g => g !== id) : [...p, id]); }
+
+  async function handleSave() {
+    setSaving(true);
+    const weight_kg = weightUnit === 'kg' ? (parseFloat(weight) || null) : (weight ? Math.round(parseFloat(weight) * 0.453592 * 10) / 10 : null);
+    const height_cm = heightUnit === 'cm' ? (parseFloat(height) || null) : (height ? Math.round(parseFloat(height) * 2.54 * 10) / 10 : null);
+    await saveProfile({
+      name: name.trim() || profile?.name,
+      age: parseInt(age, 10) || null,
+      weight_kg, height_cm,
+      goal: goal.join(','),
+      days_per_week: days,
+      time_of_day: timeOfDay,
+    });
+    setSaving(false);
+    setEditing(false);
+  }
+
+  const goalText = (profile?.goal ? profile.goal.split(',').filter(Boolean) : []).map(g => GOAL_LABELS[g] || g).join(', ');
+  const rows = [
+    { lab: 'Nombre',     val: profile?.name || '—' },
+    { lab: 'Edad',       val: profile?.age ? `${profile.age} años` : '—' },
+    { lab: 'Peso',       val: profile?.weight_kg ? `${profile.weight_kg} kg` : '—' },
+    { lab: 'Altura',     val: profile?.height_cm ? `${profile.height_cm} cm` : '—' },
+    { lab: 'Objetivo',   val: goalText || '—' },
+    { lab: 'Días/semana',val: profile?.days_per_week ? `${profile.days_per_week}` : '—' },
+    { lab: 'Horario',    val: profile?.time_of_day ? (TIME_LABELS[profile.time_of_day] || profile.time_of_day) : '—' },
+  ];
+
+  const fieldLabel = { fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', color: t.fgFaint, textTransform: 'uppercase', marginBottom: 6 };
+
+  return (
+    <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: editing ? 14 : 6 }}>
+        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>Mis datos</div>
+        {!editing && (
+          <button onClick={openEdit} style={{
+            padding: '5px 14px', borderRadius: 10, border: `1px solid ${t.divider}`,
+            background: 'transparent', color: t.accent, cursor: 'pointer',
+            fontFamily: t.fonts.body, fontWeight: 600, fontSize: 12.5,
+          }}>Editar</button>
+        )}
+      </div>
+
+      {!editing ? (
+        <div>
+          {rows.map((r, i) => (
+            <div key={r.lab} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < rows.length - 1 ? `1px solid ${t.divider}` : 'none' }}>
+              <span style={{ fontFamily: t.fonts.body, fontSize: 13, color: t.fgMuted }}>{r.lab}</span>
+              <span style={{ fontFamily: t.fonts.body, fontSize: 13.5, fontWeight: 600, color: r.val === '—' ? t.fgFaint : t.fg, textAlign: 'right', maxWidth: '60%' }}>{r.val}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={fieldLabel}>Nombre</div>
+            <Input t={t} value={name} onChange={e => setName(e.target.value)} placeholder="Tu nombre" />
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1 }}>
+              <div style={fieldLabel}>Edad</div>
+              <Input t={t} type="number" value={age} onChange={e => setAge(e.target.value)} placeholder="años" />
+            </div>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={fieldLabel}>Peso</div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <Pill t={t} active={weightUnit === 'kg'} onClick={() => changeWeightUnit('kg')}>kg</Pill>
+                <Pill t={t} active={weightUnit === 'lbs'} onClick={() => changeWeightUnit('lbs')}>lbs</Pill>
+              </div>
+            </div>
+            <Input t={t} type="number" value={weight} onChange={e => setWeight(e.target.value)} placeholder={weightUnit === 'kg' ? 'ej. 75' : 'ej. 165'} />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={fieldLabel}>Altura</div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <Pill t={t} active={heightUnit === 'cm'} onClick={() => changeHeightUnit('cm')}>cm</Pill>
+                <Pill t={t} active={heightUnit === 'in'} onClick={() => changeHeightUnit('in')}>in</Pill>
+              </div>
+            </div>
+            <Input t={t} type="number" value={height} onChange={e => setHeight(e.target.value)} placeholder={heightUnit === 'cm' ? 'ej. 175' : 'ej. 69'} />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={fieldLabel}>Objetivo</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {GOALS.map(g => (
+                <Pill key={g.id} t={t} active={goal.includes(g.id)} onClick={() => toggleGoal(g.id)}>{g.label}</Pill>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={fieldLabel}>Días por semana</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {DAYS.map(d => (<Pill key={d} t={t} active={days === d} onClick={() => setDays(d)}>{d}</Pill>))}
+            </div>
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <div style={fieldLabel}>Horario de entrenamiento</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {TIMES.map(tm => (<Pill key={tm.id} t={t} active={timeOfDay === tm.id} onClick={() => setTimeOfDay(tm.id)}>{tm.label}</Pill>))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleSave} disabled={saving} style={{
+              flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: t.accent, color: '#0A0908',
+              cursor: 'pointer', fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, opacity: saving ? 0.6 : 1,
+            }}>{saving ? 'Guardando…' : 'Guardar'}</button>
+            <button onClick={() => setEditing(false)} style={{
+              flex: 1, padding: '12px', borderRadius: 12, border: `1px solid ${t.divider}`, background: 'transparent',
+              color: t.fgMuted, cursor: 'pointer', fontFamily: t.fonts.body, fontWeight: 600, fontSize: 14,
+            }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Collapsible section ────────────────────────────────────────────────────────
+
+function Section({ t, title, open, onToggle, children }) {
+  return (
+    <div style={{ marginTop: 6 }}>
+      <button onClick={onToggle} style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 24px', background: 'transparent', border: 'none', cursor: 'pointer',
+      }}>
+        <span style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 15, color: t.fg }}>{title}</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={t.fgMuted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {open && <div>{children}</div>}
+    </div>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export function ProfileScreen({ t, onNav, onMenu, onPlus }) {
-  const { profile, saveProfile, signOut } = useAuth();
+  const { profile, saveProfile, signOut, session } = useAuth();
 
   const displayName = profile?.name || 'Usuario';
   const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
+  // Real stats
+  const [stats, setStats] = useState({ workouts: null, streak: 0, prs: null });
+  useEffect(() => {
+    if (!session?.user) return;
+    const uid = session.user.id;
+    const now = new Date();
+    const dow = now.getDay();
+    const mon = new Date(now); mon.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+    const weekStart = mon.toISOString().slice(0, 10);
+    const today = now.toISOString().slice(0, 10);
+    Promise.all([
+      supabase.from('workouts').select('*', { count: 'exact', head: true }).eq('user_id', uid),
+      supabase.from('prs').select('*', { count: 'exact', head: true }).eq('user_id', uid),
+      supabase.from('workouts').select('date').eq('user_id', uid).gte('date', weekStart).lte('date', today),
+    ]).then(([w, p, ww]) => {
+      setStats({ workouts: w.count ?? 0, prs: p.count ?? 0, streak: (ww.data || []).length });
+    }).catch(() => {});
+  }, [session?.user?.id]);
+
+  // local count of PRs as fallback / supplement
+  const localPrCount = (() => {
+    try {
+      const m = JSON.parse(localStorage.getItem('soma_skill_prs') || '{}');
+      return Object.values(m).filter(v => v && Object.keys(v).some(k => k !== 'unit' && k !== 'metric')).length;
+    } catch { return 0; }
+  })();
+
+  // Collapsible sections — "Mis datos" open by default
+  const [openSections, setOpenSections] = useState({ datos: true });
+  const toggle = (key) => setOpenSections(s => ({ ...s, [key]: !s[key] }));
+
+  const statItems = [
+    { lab: 'ENTRENOS', val: stats.workouts == null ? '—' : String(stats.workouts), col: t.pillar.train },
+    { lab: 'ESTA SEM', val: `${stats.streak}d`, col: t.secondary },
+    { lab: 'PRS',      val: String(Math.max(stats.prs || 0, localPrCount)), col: t.pillar.records },
+  ];
+
   return (
     <ScreenFrame t={t} accentColor={t.fg}>
       <StatusBar t={t} />
-      <PillarHeader t={t} title="Perfil" onMenu={onMenu} />
+      <PillarHeader t={t} title="Yo" onMenu={onMenu} />
 
       <div style={{ height: 'calc(100% - 56px)', overflow: 'auto', paddingBottom: 100 }}>
 
         {/* ── Avatar + name ── */}
         <div style={{ margin: '18px 20px 0', display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
-            width: 64, height: 64, borderRadius: '50%', background: t.s2,
+            width: 60, height: 60, borderRadius: '50%', background: t.accent,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: t.fonts.display, fontWeight: 800, fontSize: 24,
-            letterSpacing: '-0.04em', color: t.fgMuted,
+            fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22,
+            letterSpacing: '-0.04em', color: t.onAccent,
           }}>
             {initials}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{
-              fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22,
-              letterSpacing: '-0.035em', color: t.fg,
-            }}>
+            <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22, letterSpacing: '-0.035em', color: t.fg }}>
               {displayName}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-              <span style={{ fontFamily: t.fonts.body, fontSize: 12, color: t.fgMuted }}>
-                L01 · The Spark
-              </span>
+            <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, marginTop: 3 }}>
+              L01 · The Spark
             </div>
           </div>
         </div>
 
-        {/* ── Stats row ── */}
+        {/* ── Stats row (real) ── */}
         <div style={{
-          margin: '18px 20px 0',
-          display: 'grid', gridTemplateColumns: 'repeat(3,1fr)',
-          background: t.surface, borderRadius: 18,
-          border: '1px solid ' + t.divider, overflow: 'hidden',
+          margin: '16px 20px 0', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)',
+          background: t.surface, borderRadius: 18, border: '1px solid ' + t.divider, overflow: 'hidden',
         }}>
-          {[
-            { lab: 'ENTRENOS', val: '0',  col: t.pillar.train   },
-            { lab: 'STREAK',   val: '0d', col: t.secondary      },
-            { lab: 'PRS',      val: '0',  col: t.pillar.records },
-          ].map((s, i, arr) => (
-            <div key={i} style={{
-              padding: '14px 10px', textAlign: 'center',
-              borderRight: i < arr.length - 1 ? '1px solid ' + t.divider : 'none',
-            }}>
-              <div style={{
-                fontFamily: t.fonts.display, fontWeight: 800, fontSize: 24,
-                letterSpacing: '-0.035em', color: t.fg,
-              }}>{s.val}</div>
-              <div style={{
-                width: 16, height: 2, background: s.col,
-                borderRadius: 1, margin: '4px auto 4px',
-              }} />
+          {statItems.map((s, i, arr) => (
+            <div key={i} style={{ padding: '14px 10px', textAlign: 'center', borderRight: i < arr.length - 1 ? '1px solid ' + t.divider : 'none' }}>
+              <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 24, letterSpacing: '-0.035em', color: t.fg }}>{s.val}</div>
+              <div style={{ width: 16, height: 2, background: s.col, borderRadius: 1, margin: '4px auto 4px' }} />
               <MonoLabel t={t}>{s.lab}</MonoLabel>
             </div>
           ))}
         </div>
 
-        {/* ── Edit Profile ── */}
-        <div style={{ marginTop: 16 }}>
-          <MonoLabel t={t} style={{ padding: '0 20px 8px' }}>
-            <div style={{ padding: '0 20px 8px' }}>tu perfil</div>
-          </MonoLabel>
-          <EditProfileCard t={t} profile={profile} saveProfile={saveProfile} />
-        </div>
+        {/* ── Collapsible sections ── */}
+        <div style={{ marginTop: 14 }}>
+          <Section t={t} title="Mis datos" open={!!openSections.datos} onToggle={() => toggle('datos')}>
+            <PersonalInfoCard t={t} profile={profile} saveProfile={saveProfile} />
+          </Section>
 
-        {/* ── Estado físico ── */}
-        <div style={{ marginTop: 4 }}>
-          <PhysicalStateCard t={t} />
-        </div>
+          <Section t={t} title="Skills & PRs" open={!!openSections.skills} onToggle={() => toggle('skills')}>
+            <SkillsCard t={t} />
+          </Section>
 
-        {/* ── Áreas de enfoque ── */}
-        <div style={{ marginTop: 4 }}>
-          <FocusAreasCard t={t} />
-        </div>
+          <Section t={t} title="Equipo" open={!!openSections.equipo} onToggle={() => toggle('equipo')}>
+            <EquipmentCard t={t} />
+          </Section>
 
-        {/* ── Equipo ── */}
-        <div style={{ marginTop: 4 }}>
-          <EquipmentCard t={t} />
-        </div>
+          <Section t={t} title="Áreas de enfoque" open={!!openSections.focus} onToggle={() => toggle('focus')}>
+            <FocusAreasCard t={t} />
+          </Section>
 
-        {/* ── Movimientos ── */}
-        <div style={{ marginTop: 4 }}>
-          <SkillsCard t={t} />
-        </div>
+          <Section t={t} title="Metas" open={!!openSections.metas} onToggle={() => toggle('metas')}>
+            <GoalsCard t={t} />
+          </Section>
 
-        {/* ── Metas ── */}
-        <div style={{ marginTop: 4 }}>
-          <GoalsCard t={t} />
-        </div>
+          <Section t={t} title="Estado físico / lesiones" open={!!openSections.fisico} onToggle={() => toggle('fisico')}>
+            <PhysicalStateCard t={t} />
+          </Section>
 
-        {/* ── Health Connect ── */}
-        <div style={{ marginTop: 4 }}>
-          <HealthConnectCard t={t} />
-        </div>
+          <Section t={t} title="Health Connect" open={!!openSections.health} onToggle={() => toggle('health')}>
+            <HealthConnectCard t={t} />
+          </Section>
 
-        {/* ── Apariencia ── */}
-        <div style={{ marginTop: 4 }}>
-          <ThemeCard t={t} />
+          <Section t={t} title="Apariencia" open={!!openSections.tema} onToggle={() => toggle('tema')}>
+            <ThemeCard t={t} />
+          </Section>
         </div>
 
         {/* ── Sign out ── */}
         <button onClick={signOut} style={{
-          margin: '16px 20px 0', width: 'calc(100% - 40px)',
+          margin: '20px 20px 0', width: 'calc(100% - 40px)',
           padding: '13px', borderRadius: 14, border: `1px solid ${t.semantic.low}44`,
           background: 'transparent', color: t.semantic.low,
           fontFamily: t.fonts.body, fontWeight: 600, fontSize: 14, cursor: 'pointer',
