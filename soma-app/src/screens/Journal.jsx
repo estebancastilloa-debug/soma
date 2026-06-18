@@ -35,13 +35,33 @@ const BODY_AREA_GROUPS = [
   { group: 'INFERIOR', areas: ['Cadera', 'Cuádriceps izq', 'Cuádriceps der', 'Isquios izq', 'Isquios der', 'Rodilla izq', 'Rodilla der', 'Tobillo izq', 'Tobillo der'] },
 ];
 
-// Pain intensity per body area (tap to cycle)
+// Pain intensity per body area
 const PAIN_LEVELS = [
   { v: 0, label: '—',         color: null      },
   { v: 1, label: 'Leve',      color: '#F5C542' },
   { v: 2, label: 'Moderado',  color: '#F59E0B' },
   { v: 3, label: 'Fuerte',    color: '#DC2626' },
 ];
+
+// Pain type: exercise soreness (normal/good) vs injury (bad)
+const PAIN_TYPES = [
+  { id: 'exercise', label: 'Ejercicio', sub: 'Agujetas / esfuerzo normal', color: '#42C5F5' },
+  { id: 'injury',   label: 'Lesión',    sub: 'Dolor que preocupa',          color: '#DC2626' },
+];
+
+// Normalize stored area data (legacy array, legacy number, or {level,type})
+function normalizeAreas(raw) {
+  const out = {};
+  if (Array.isArray(raw)) {
+    raw.forEach(a => { out[a] = { level: 2, type: 'exercise' }; });
+  } else if (raw && typeof raw === 'object') {
+    Object.entries(raw).forEach(([area, val]) => {
+      if (typeof val === 'number') out[area] = { level: val, type: 'exercise' };
+      else if (val && typeof val === 'object') out[area] = { level: val.level || 1, type: val.type || 'exercise' };
+    });
+  }
+  return out;
+}
 
 // ─── WebAuthn helpers ──────────────────────────────────────────────────
 function u8ToB64(arr) {
@@ -422,14 +442,14 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     try { return JSON.parse(localStorage.getItem('soma_phys_mood') || '{}')[today] || null; }
     catch { return null; }
   });
-  // body areas now store intensity per area: { areaName: 1-3 }
+  // body areas store { areaName: { level: 1-3, type: 'exercise'|'injury' } }
   const [bodyAreas, setBodyAreas] = useState(() => {
     try {
       const raw = JSON.parse(localStorage.getItem('soma_body_areas') || '{}')[today];
-      if (Array.isArray(raw)) { const m = {}; raw.forEach(a => { m[a] = 2; }); return m; } // migrate legacy
-      return raw && typeof raw === 'object' ? raw : {};
+      return normalizeAreas(raw);
     } catch { return {}; }
   });
+  const [painSheetArea, setPainSheetArea] = useState(null); // area being edited
 
   // Psychology biometric lock
   const [psychUnlocked, setPsychUnlocked] = useState(false);
@@ -553,10 +573,14 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     lines.push('## 💪 Estado Físico');
     const physLabel = PHYS_STATES.find(s => s.id === physMood)?.label || 'No registrado';
     lines.push(`- **Cansancio:** ${physLabel}`);
-    const painEntries = Object.entries(bodyAreas).filter(([, v]) => v > 0);
+    const painEntries = Object.entries(bodyAreas).filter(([, v]) => v && v.level > 0);
     if (painEntries.length > 0) {
-      const painText = painEntries.map(([a, v]) => `${a} (${PAIN_LEVELS.find(p => p.v === v)?.label || v})`).join(', ');
-      lines.push(`- **Dolor:** ${painText}`);
+      const injuryText = painEntries.filter(([, v]) => v.type === 'injury')
+        .map(([a, v]) => `${a} (${PAIN_LEVELS.find(p => p.v === v.level)?.label || v.level})`).join(', ');
+      const exerciseText = painEntries.filter(([, v]) => v.type === 'exercise')
+        .map(([a, v]) => `${a} (${PAIN_LEVELS.find(p => p.v === v.level)?.label || v.level})`).join(', ');
+      if (injuryText)   lines.push(`- **Dolor de lesión ⚠:** ${injuryText}`);
+      if (exerciseText) lines.push(`- **Dolor de ejercicio:** ${exerciseText}`);
     }
     if (readiness) {
       lines.push(`- **Readiness:** ${readiness.score}/100 · ${readiness.label}`);
@@ -654,12 +678,7 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     } catch {}
   }
 
-  // tap cycles pain intensity 0 → 1 → 2 → 3 → 0
-  function cycleBodyArea(area) {
-    const cur = bodyAreas[area] || 0;
-    const nextVal = (cur + 1) % 4;
-    const next = { ...bodyAreas };
-    if (nextVal === 0) delete next[area]; else next[area] = nextVal;
+  function persistAreas(next) {
     setBodyAreas(next);
     try {
       const all = JSON.parse(localStorage.getItem('soma_body_areas') || '{}');
@@ -668,19 +687,35 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     } catch {}
   }
 
+  function setPain(area, level, type) {
+    const next = { ...bodyAreas };
+    if (!level) delete next[area];
+    else next[area] = { level, type: type || next[area]?.type || 'exercise' };
+    persistAreas(next);
+  }
+
+  // Count injury-days and exercise-days per area across history
   const areaFrequency = (() => {
     try {
       const all = JSON.parse(localStorage.getItem('soma_body_areas') || '{}');
       const counts = {};
       Object.values(all).forEach(day => {
-        if (Array.isArray(day)) day.forEach(a => { counts[a] = (counts[a] || 0) + 1; });
-        else if (day && typeof day === 'object') Object.keys(day).forEach(a => { if (day[a] > 0) counts[a] = (counts[a] || 0) + 1; });
+        const norm = normalizeAreas(day);
+        Object.entries(norm).forEach(([a, v]) => {
+          if (!counts[a]) counts[a] = { total: 0, injury: 0 };
+          counts[a].total += 1;
+          if (v.type === 'injury') counts[a].injury += 1;
+        });
       });
       return counts;
     } catch { return {}; }
   })();
 
-  const readiness = computeReadiness({ healthData, fatigueId: physMood, mentalMood: mood, painMap: bodyAreas });
+  // readiness: pass intensities weighted by type (injury counts more)
+  const painMapWeighted = Object.fromEntries(
+    Object.entries(bodyAreas).map(([a, v]) => [a, v.type === 'injury' ? v.level * 1.6 : v.level])
+  );
+  const readiness = computeReadiness({ healthData, fatigueId: physMood, mentalMood: mood, painMap: painMapWeighted });
 
   async function registerBiometric() {
     if (!window.PublicKeyCredential) {
@@ -845,41 +880,43 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                   </span>
                 )}
               </div>
-              {/* intensity legend */}
-              <div style={{ display:'flex', gap:10, marginBottom:12 }}>
-                {PAIN_LEVELS.slice(1).map(p => (
-                  <div key={p.v} style={{ display:'flex', alignItems:'center', gap:4 }}>
-                    <div style={{ width:8, height:8, borderRadius:'50%', background:p.color }}/>
-                    <span style={{ fontFamily:t.fonts.mono, fontSize:8, color:t.fgFaint }}>{p.label}</span>
+              {/* legend */}
+              <div style={{ display:'flex', gap:12, marginBottom:12, flexWrap:'wrap' }}>
+                {PAIN_TYPES.map(pt => (
+                  <div key={pt.id} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <div style={{ width:9, height:9, borderRadius:'50%', background:pt.color }}/>
+                    <span style={{ fontFamily:t.fonts.body, fontSize:11, color:t.fgMuted }}>{pt.label}</span>
                   </div>
                 ))}
-                <span style={{ fontFamily:t.fonts.mono, fontSize:8, color:t.fgFaint, marginLeft:'auto' }}>toca para subir intensidad</span>
+                <span style={{ fontFamily:t.fonts.body, fontSize:11, color:t.fgFaint, marginLeft:'auto' }}>toca una zona</span>
               </div>
               {BODY_AREA_GROUPS.map(({ group, areas }) => (
                 <div key={group} style={{ marginBottom:10 }}>
-                  <div style={{ fontFamily:t.fonts.mono, fontSize:8, fontWeight:700, letterSpacing:'0.16em', color:t.fgFaint, textTransform:'uppercase', marginBottom:6 }}>
+                  <div style={{ fontFamily:t.fonts.mono, fontSize:9, fontWeight:700, letterSpacing:'0.12em', color:t.fgFaint, textTransform:'uppercase', marginBottom:7 }}>
                     {group}
                   </div>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
                     {areas.map(area => {
-                      const level = bodyAreas[area] || 0;
-                      const lvl = PAIN_LEVELS.find(p => p.v === level);
-                      const col = lvl?.color;
-                      const freq = areaFrequency[area] || 0;
+                      const entry = bodyAreas[area];
+                      const active = !!entry;
+                      const typeCol = entry ? PAIN_TYPES.find(p => p.id === entry.type)?.color : null;
+                      const freq = areaFrequency[area];
                       return (
-                        <button key={area} onClick={() => cycleBodyArea(area)} style={{
-                          padding:'5px 9px', borderRadius:8,
-                          border:`1px solid ${level > 0 ? col : t.border}`,
-                          background: level > 0 ? col + '22' : t.s2,
-                          color: level > 0 ? col : t.fgMuted,
-                          cursor:'pointer', fontFamily:t.fonts.body, fontSize:11, fontWeight: level > 0 ? 600 : 400,
-                          display:'flex', alignItems:'center', gap:4,
+                        <button key={area} onClick={() => setPainSheetArea(area)} style={{
+                          padding:'8px 11px', borderRadius:10,
+                          border:`1px solid ${active ? typeCol : t.border}`,
+                          background: active ? typeCol + '22' : t.s2,
+                          color: active ? typeCol : t.fg,
+                          cursor:'pointer', fontFamily:t.fonts.body, fontSize:13, fontWeight: active ? 600 : 400,
+                          display:'flex', alignItems:'center', gap:5,
                         }}>
-                          {level > 0 && <span style={{ width:6, height:6, borderRadius:'50%', background:col, display:'inline-block' }}/>}
+                          {active && <span style={{ display:'flex', gap:2 }}>
+                            {[1,2,3].map(d => <span key={d} style={{ width:5, height:5, borderRadius:'50%', background: d <= entry.level ? typeCol : typeCol+'44' }}/>)}
+                          </span>}
                           {area}
-                          {freq > 1 && (
-                            <span style={{ fontFamily:t.fonts.mono, fontSize:8, color: level > 0 ? col : t.fgFaint, opacity:0.7 }}>
-                              ×{freq}
+                          {freq?.injury > 1 && (
+                            <span style={{ fontFamily:t.fonts.mono, fontSize:9, color:'#DC2626', opacity:0.8 }}>
+                              ⚠{freq.injury}
                             </span>
                           )}
                         </button>
@@ -888,16 +925,17 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                   </div>
                 </div>
               ))}
-              {Object.keys(areaFrequency).length > 0 && (
+              {/* Injury watch — areas flagged as injury most often */}
+              {Object.entries(areaFrequency).some(([, c]) => c.injury > 0) && (
                 <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid '+t.divider }}>
-                  <div style={{ fontFamily:t.fonts.mono, fontSize:8, fontWeight:700, letterSpacing:'0.14em', color:t.fgFaint, textTransform:'uppercase', marginBottom:6 }}>
-                    Más frecuentes (historial)
+                  <div style={{ fontFamily:t.fonts.mono, fontSize:9, fontWeight:700, letterSpacing:'0.12em', color:'#DC2626', textTransform:'uppercase', marginBottom:7 }}>
+                    ⚠ Vigilancia de lesiones
                   </div>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
-                    {Object.entries(areaFrequency).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([area, count]) => (
-                      <div key={area} style={{ padding:'4px 8px', borderRadius:6, background:t.s2, display:'flex', alignItems:'center', gap:4 }}>
-                        <span style={{ fontFamily:t.fonts.body, fontSize:11, color:t.fgMuted }}>{area}</span>
-                        <span style={{ fontFamily:t.fonts.mono, fontSize:9, fontWeight:700, color:'#DC2626' }}>×{count}</span>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                    {Object.entries(areaFrequency).filter(([, c]) => c.injury > 0).sort((a,b)=>b[1].injury-a[1].injury).slice(0,6).map(([area, c]) => (
+                      <div key={area} style={{ padding:'5px 9px', borderRadius:8, background:'#DC262615', border:'1px solid #DC262644', display:'flex', alignItems:'center', gap:5 }}>
+                        <span style={{ fontFamily:t.fonts.body, fontSize:12, color:t.fg }}>{area}</span>
+                        <span style={{ fontFamily:t.fonts.mono, fontSize:10, fontWeight:700, color:'#DC2626' }}>{c.injury}d lesión</span>
                       </div>
                     ))}
                   </div>
@@ -1219,6 +1257,65 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
           </>
         )}
       </div>
+
+      {/* Pain detail sheet */}
+      {painSheetArea && (() => {
+        const entry = bodyAreas[painSheetArea] || { level: 0, type: 'exercise' };
+        return (
+          <div style={{ position:'absolute', inset:0, zIndex:96, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'flex-end' }}
+            onClick={() => setPainSheetArea(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ width:'100%', background:t.bg, borderRadius:'22px 22px 0 0', padding:'22px 20px 40px' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18 }}>
+                <div style={{ fontFamily:t.fonts.display, fontWeight:700, fontSize:20, color:t.fg }}>{painSheetArea}</div>
+                <button onClick={() => setPainSheetArea(null)} style={{ width:34, height:34, borderRadius:'50%', border:'none', background:t.surface, color:t.fg, cursor:'pointer', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+              </div>
+
+              {/* Intensity */}
+              <div style={{ fontFamily:t.fonts.mono, fontSize:10, fontWeight:700, letterSpacing:'0.14em', color:t.fgFaint, textTransform:'uppercase', marginBottom:8 }}>Intensidad</div>
+              <div style={{ display:'flex', gap:8, marginBottom:20 }}>
+                {PAIN_LEVELS.slice(1).map(p => {
+                  const on = entry.level === p.v;
+                  return (
+                    <button key={p.v} onClick={() => setPain(painSheetArea, p.v, entry.type)} style={{
+                      flex:1, padding:'12px 6px', borderRadius:12, cursor:'pointer',
+                      border:`1px solid ${on ? p.color : t.border}`,
+                      background: on ? p.color + '22' : t.surface,
+                      color: on ? p.color : t.fgMuted,
+                      fontFamily:t.fonts.body, fontWeight: on ? 700 : 500, fontSize:14,
+                    }}>{p.label}</button>
+                  );
+                })}
+              </div>
+
+              {/* Type */}
+              <div style={{ fontFamily:t.fonts.mono, fontSize:10, fontWeight:700, letterSpacing:'0.14em', color:t.fgFaint, textTransform:'uppercase', marginBottom:8 }}>Tipo de dolor</div>
+              <div style={{ display:'flex', gap:8, marginBottom:22 }}>
+                {PAIN_TYPES.map(pt => {
+                  const on = entry.type === pt.id && entry.level > 0;
+                  return (
+                    <button key={pt.id} onClick={() => setPain(painSheetArea, entry.level || 1, pt.id)} style={{
+                      flex:1, padding:'14px 10px', borderRadius:14, cursor:'pointer', textAlign:'left',
+                      border:`1.5px solid ${on ? pt.color : t.border}`,
+                      background: on ? pt.color + '18' : t.surface,
+                    }}>
+                      <div style={{ fontFamily:t.fonts.body, fontWeight:700, fontSize:14, color: on ? pt.color : t.fg }}>{pt.label}</div>
+                      <div style={{ fontFamily:t.fonts.body, fontSize:11, color:t.fgMuted, marginTop:2 }}>{pt.sub}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {entry.level > 0 && (
+                <button onClick={() => { setPain(painSheetArea, 0); setPainSheetArea(null); }} style={{
+                  width:'100%', padding:'12px', borderRadius:14, border:`1px solid ${t.divider}`,
+                  background:'transparent', color:t.fgMuted, cursor:'pointer',
+                  fontFamily:t.fonts.body, fontWeight:600, fontSize:13,
+                }}>Quitar dolor de esta zona</button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* InnerMapDetail overlay */}
       {psychDetailItem && (

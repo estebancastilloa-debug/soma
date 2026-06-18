@@ -74,8 +74,14 @@ export function loadTodaySignals() {
   try { fatigueId = JSON.parse(localStorage.getItem('soma_phys_mood') || '{}')[today] || null; } catch {}
   try {
     const raw = JSON.parse(localStorage.getItem('soma_body_areas') || '{}')[today];
-    if (Array.isArray(raw)) { raw.forEach(a => { painMap[a] = 2; }); } // legacy: treat as moderate
-    else if (raw && typeof raw === 'object') { painMap = raw; }
+    if (Array.isArray(raw)) {
+      raw.forEach(a => { painMap[a] = 2; }); // legacy
+    } else if (raw && typeof raw === 'object') {
+      Object.entries(raw).forEach(([a, v]) => {
+        if (typeof v === 'number') painMap[a] = v;
+        else if (v && typeof v === 'object' && v.level) painMap[a] = v.type === 'injury' ? v.level * 1.6 : v.level;
+      });
+    }
   } catch {}
   return { fatigueId, painMap };
 }

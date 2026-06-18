@@ -4,9 +4,9 @@
 
 /* ─── SOMA Design Tokens ─── */
 :root {
-  --soma-font-display: 'Syne', sans-serif;
-  --soma-font-body:    'DM Sans', system-ui, sans-serif;
-  --soma-font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  --soma-font-display: 'Roboto', system-ui, sans-serif;
+  --soma-font-body:    'Roboto', system-ui, sans-serif;
+  --soma-font-mono:    'Roboto Mono', ui-monospace, monospace;
   --soma-ok:  #7BD89A;
   --soma-mid: #F5C84B;
   --soma-low: #EF6B5C;
@@ -64,7 +64,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { margin: 0; padding: 0; height: 100%; }
 body {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Roboto', system-ui, sans-serif;
   background: #0A0908;
   color: #F4F1EC;
   -webkit-font-smoothing: antialiased;

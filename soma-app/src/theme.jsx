@@ -64,9 +64,9 @@ function computeTokens({ mode = 'dark', intensityId = 'vivid', accentId = 'lime'
     },
     semantic: SEMANTIC,
     fonts: {
-      display: 'Syne, sans-serif',
-      body: 'DM Sans, system-ui, sans-serif',
-      mono: '"JetBrains Mono", ui-monospace, monospace',
+      display: 'Roboto, system-ui, sans-serif',
+      body: 'Roboto, system-ui, sans-serif',
+      mono: '"Roboto Mono", ui-monospace, monospace',
     },
   };
 }
