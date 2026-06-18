@@ -2,8 +2,17 @@ import { Capacitor } from '@capacitor/core';
 import { HealthConnect } from '@devmaxime/capacitor-health-connect';
 
 // Records we read directly + aggregates we compute
-const READ_TYPES  = ['Steps', 'Weight', 'SleepSession', 'RestingHeartRate'];
+const READ_TYPES  = ['Steps', 'Weight', 'SleepSession', 'RestingHeartRate', 'ActivitySession'];
 const WRITE_TYPES = [];
+
+// Common Health Connect exercise type codes → label (subset)
+const EXERCISE_LABELS = {
+  56: 'Carrera', 57: 'Carrera (cinta)', 79: 'Caminata', 8: 'Bici', 9: 'Bici estática',
+  82: 'Remo', 83: 'Remo (máquina)', 66: 'Natación', 67: 'Natación (piscina)',
+  37: 'Functional / HIIT', 36: 'Entrenamiento de fuerza', 70: 'Fuerza',
+  13: 'Calistenia', 25: 'Elíptica', 48: 'Senderismo', 97: 'Yoga', 100: 'Pilates',
+  2: 'Bádminton', 64: 'Fútbol', 11: 'Boxeo', 31: 'Escalada',
+};
 
 function isNative() {
   return Capacitor.isNativePlatform();
@@ -140,4 +149,27 @@ export async function getTodayHealthData() {
   } catch {}
 
   return Object.keys(results).length ? results : null;
+}
+
+// Recent exercise sessions logged on the phone (last `days` days)
+// Returns [{ date, title, durationMin, type }]
+export async function getRecentActivity(days = 21) {
+  if (!isNative()) return [];
+  const end = new Date();
+  const start = new Date(); start.setDate(start.getDate() - days); start.setHours(0, 0, 0, 0);
+  try {
+    const { records } = await HealthConnect.readRecords({
+      start: iso(start), end: iso(end), type: 'ActivitySession',
+    });
+    if (!records?.length) return [];
+    return records.map(r => {
+      const s = new Date(r.startTime), e = new Date(r.endTime);
+      const durationMin = Math.max(1, Math.round((e - s) / 60000));
+      const typeCode = r.exerciseType ?? r.activityType;
+      const label = r.title || EXERCISE_LABELS[typeCode] || 'Actividad';
+      return { date: s.toISOString().slice(0, 10), title: label, durationMin, type: typeCode };
+    }).sort((a, b) => (a.date < b.date ? 1 : -1));
+  } catch {
+    return [];
+  }
 }

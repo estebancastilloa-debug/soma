@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { getTodayHealthData } from '../lib/healthConnect.js';
 import { computeReadiness } from '../lib/readiness.js';
 import { biometricAvailable, biometricAuth } from '../lib/biometric.js';
+import { Markdown } from '../components/Markdown.jsx';
 import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab, DragHandle, useSwipeDown } from '../chrome.jsx';
 import { useBackClose } from '../lib/backstack.js';
 import { IconHeart, IconRecovery, IconSleep, IconWater, MOOD_ICONS, MOOD_LABELS } from '../icons.jsx';
@@ -166,16 +167,107 @@ const INNER_MAP_DATA = {
   },
 };
 
+// ─── Interactive quizzes per topic ──────────────────────────────────────
+const QUIZZES = {
+  biotipos: {
+    title: 'Descubre tu somatotipo',
+    intro: 'Responde honestamente. Tu somatotipo guía cómo entrenas y comes.',
+    questions: [
+      { q: 'Tu estructura ósea (muñecas, tobillos) es…', options: [
+        { label: 'Delgada y pequeña', s: { ecto: 2 } },
+        { label: 'Media y atlética',  s: { meso: 2 } },
+        { label: 'Ancha y robusta',   s: { endo: 2 } },
+      ]},
+      { q: '¿Cómo respondes a la comida?', options: [
+        { label: 'Como mucho y no subo de peso', s: { ecto: 2 } },
+        { label: 'Gano músculo con facilidad',    s: { meso: 2 } },
+        { label: 'Subo de peso con facilidad',     s: { endo: 2 } },
+      ]},
+      { q: 'Tu forma corporal natural es…', options: [
+        { label: 'Larga y delgada (lineal)',     s: { ecto: 2 } },
+        { label: 'En V, hombros anchos',          s: { meso: 2 } },
+        { label: 'Redondeada, guarda grasa',      s: { endo: 2 } },
+      ]},
+      { q: '¿Cómo ganas músculo?', options: [
+        { label: 'Me cuesta mucho',               s: { ecto: 2 } },
+        { label: 'Rápido y se nota',              s: { meso: 2 } },
+        { label: 'Gano músculo pero con grasa',   s: { endo: 2 } },
+      ]},
+    ],
+    results: {
+      ecto: { label: 'Ectomorfo', desc: 'Metabolismo rápido, estructura delgada. Te cuesta ganar masa. Prioriza fuerza con cargas altas, descansos largos, superávit calórico con suficientes carbohidratos y menos cardio.' },
+      meso: { label: 'Mesomorfo', desc: 'Atlético por naturaleza, ganas músculo y pierdes grasa con facilidad. Responde bien a casi todo: combina fuerza e hipertrofia, mantén la consistencia y vigila la dieta para no confiarte.' },
+      endo: { label: 'Endomorfo', desc: 'Estructura robusta, guardas energía fácil. Prioriza déficit calórico controlado, más proteína, entrenamiento metabólico (circuitos, intervalos) y cardio regular junto a la fuerza.' },
+    },
+  },
+  apego: {
+    title: 'Identifica tu estilo de apego',
+    intro: 'Piensa en tus relaciones cercanas al responder.',
+    questions: [
+      { q: 'Cuando alguien que quiero se distancia…', options: [
+        { label: 'Me angustio y busco contacto',  s: { ansioso: 2 } },
+        { label: 'Me da igual, necesito espacio',  s: { evitativo: 2 } },
+        { label: 'Confío en que volveremos a conectar', s: { seguro: 2 } },
+      ]},
+      { q: 'Expresar mis necesidades emocionales…', options: [
+        { label: 'Me cuesta, temo ser mucho',      s: { ansioso: 2 } },
+        { label: 'Prefiero no depender de nadie',  s: { evitativo: 2 } },
+        { label: 'Lo hago con naturalidad',        s: { seguro: 2 } },
+      ]},
+      { q: 'En la intimidad emocional…', options: [
+        { label: 'Quiero más cercanía de la que recibo', s: { ansioso: 2 } },
+        { label: 'Me siento invadido fácilmente',  s: { evitativo: 2 } },
+        { label: 'Disfruto cercanía y autonomía',  s: { seguro: 2 } },
+      ]},
+    ],
+    results: {
+      ansioso:   { label: 'Apego ansioso', desc: 'Buscas cercanía y temes el abandono. Trabaja en autorregularte antes de buscar tranquilización externa, y comunica necesidades de forma directa y calmada.' },
+      evitativo: { label: 'Apego evitativo', desc: 'Valoras la independencia y te incomoda la dependencia. Practica permitir cercanía gradual y nombrar emociones en voz alta, aunque incomode.' },
+      seguro:    { label: 'Apego seguro', desc: 'Equilibras intimidad y autonomía. Sigue cultivando comunicación honesta; eres una base segura para otros.' },
+    },
+  },
+};
+
 // ─── InnerMapDetail ────────────────────────────────────────────────────
 function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
   const detail = INNER_MAP_DATA[item.id] || {};
+  const quiz = QUIZZES[item.id];
   const [copied, setCopied] = useState(false);
+  const [editingResponse, setEditingResponse] = useState(!data.nlmResponse);
   const [exercises, setExercises] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('soma_psych_exercises') || '{}');
       return saved[item.id] || [];
     } catch { return []; }
   });
+
+  // quiz answers stored in psych data: data.quizAnswers = {qIndex: optIndex}, data.quizResult = key
+  const quizAnswers = data.quizAnswers || {};
+  function answerQuiz(qIndex, optIndex) {
+    const next = { ...quizAnswers, [qIndex]: optIndex };
+    onUpdate(item.id, 'quizAnswers', next);
+    // compute result if all answered
+    if (quiz && Object.keys(next).length === quiz.questions.length) {
+      const scores = {};
+      quiz.questions.forEach((q, qi) => {
+        const opt = q.options[next[qi]];
+        if (opt) Object.entries(opt.s).forEach(([k, v]) => { scores[k] = (scores[k] || 0) + v; });
+      });
+      const winner = Object.entries(scores).sort((a, b) => b[1] - a[1])[0]?.[0];
+      if (winner) onUpdate(item.id, 'quizResult', winner);
+    }
+  }
+  function resetQuiz() {
+    onUpdate(item.id, 'quizAnswers', {});
+    onUpdate(item.id, 'quizResult', null);
+  }
+
+  function saveResponse(value) {
+    onUpdate(item.id, 'nlmResponse', value);
+    if (value && value.trim() && data.status !== 'explored') {
+      onUpdate(item.id, 'status', 'explored');
+    }
+  }
 
   function toggleExercise(exId) {
     const next = exercises.includes(exId)
@@ -273,6 +365,60 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
             <div style={{ fontFamily: t.fonts.body, fontSize: 14, color: t.fg, lineHeight: 1.6 }}>
               {detail.guide}
             </div>
+          </div>
+        )}
+
+        {/* INTERACTIVE QUIZ */}
+        {quiz && (
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + t.divider }}>
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase', marginBottom: 4 }}>
+              {quiz.title}
+            </div>
+            {!data.quizResult && (
+              <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, marginBottom: 14, lineHeight: 1.5 }}>{quiz.intro}</div>
+            )}
+
+            {data.quizResult ? (
+              <div style={{ background: (detail.color || t.accent) + '15', border: `1px solid ${(detail.color || t.accent)}44`, borderRadius: 14, padding: '16px' }}>
+                <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: detail.color || t.accent, textTransform: 'uppercase', marginBottom: 6 }}>Tu resultado</div>
+                <div style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 22, letterSpacing: '-0.03em', color: t.fg, marginBottom: 8 }}>
+                  {quiz.results[data.quizResult]?.label}
+                </div>
+                <div style={{ fontFamily: t.fonts.body, fontSize: 13.5, color: t.fgMuted, lineHeight: 1.6 }}>
+                  {quiz.results[data.quizResult]?.desc}
+                </div>
+                <button onClick={resetQuiz} style={{ marginTop: 12, padding: '8px 14px', borderRadius: 10, border: `1px solid ${t.divider}`, background: 'transparent', color: t.fgMuted, cursor: 'pointer', fontFamily: t.fonts.body, fontSize: 12, fontWeight: 600 }}>
+                  Volver a responder
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {quiz.questions.map((q, qi) => (
+                  <div key={qi}>
+                    <div style={{ fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13.5, color: t.fg, marginBottom: 8 }}>{qi + 1}. {q.q}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {q.options.map((opt, oi) => {
+                        const on = quizAnswers[qi] === oi;
+                        return (
+                          <button key={oi} onClick={() => answerQuiz(qi, oi)} style={{
+                            width: '100%', textAlign: 'left', padding: '11px 14px', borderRadius: 12, cursor: 'pointer',
+                            border: `1px solid ${on ? (detail.color || t.accent) : t.border}`,
+                            background: on ? (detail.color || t.accent) + '18' : t.surface,
+                            color: on ? t.fg : t.fgMuted,
+                            fontFamily: t.fonts.body, fontSize: 13, fontWeight: on ? 600 : 400,
+                          }}>
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ fontFamily: t.fonts.mono, fontSize: 9, color: t.fgFaint, letterSpacing: '0.1em' }}>
+                  {Object.keys(quizAnswers).length}/{quiz.questions.length} respondidas
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -391,30 +537,49 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
           />
         </div>
 
-        {/* RESPUESTA DE NOTEBOOKLM */}
+        {/* ANÁLISIS DE NOTEBOOKLM */}
         <div style={{ padding: '16px 20px' }}>
-          <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase', marginBottom: 6 }}>
-            Respuesta de NotebookLM
-          </div>
-          <div style={{ fontFamily: t.fonts.body, fontSize: 11.5, color: t.fgFaint, lineHeight: 1.4, marginBottom: 10 }}>
-            Pega aquí la respuesta de NotebookLM cuando uses el prompt de arriba. Esto enriquece tu perfil y los futuros prompts.
-          </div>
-          <textarea
-            value={data.nlmResponse || ''}
-            onChange={e => onUpdate(item.id, 'nlmResponse', e.target.value)}
-            placeholder="Pega la respuesta de NotebookLM aquí..."
-            rows={5}
-            style={{
-              width: '100%', background: t.s2, border: '1px solid ' + t.border,
-              borderRadius: 12, padding: '12px 14px', color: t.fg,
-              fontFamily: t.fonts.body, fontSize: 13, lineHeight: 1.5,
-              outline: 'none', resize: 'vertical', boxSizing: 'border-box',
-            }}
-          />
-          {data.nlmResponse && (
-            <div style={{ marginTop: 6, fontFamily: t.fonts.mono, fontSize: 8.5, color: t.fgFaint, textAlign: 'right', letterSpacing: '0.1em' }}>
-              GUARDADO ✓
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase' }}>
+              {data.nlmResponse && !editingResponse ? 'Tu análisis personalizado' : 'Análisis de NotebookLM'}
             </div>
+            {data.nlmResponse && !editingResponse && (
+              <button onClick={() => setEditingResponse(true)} style={{
+                padding: '5px 12px', borderRadius: 999, border: `1px solid ${t.divider}`, background: 'transparent',
+                color: t.fgMuted, cursor: 'pointer', fontFamily: t.fonts.body, fontSize: 12, fontWeight: 600,
+              }}>Editar</button>
+            )}
+          </div>
+
+          {data.nlmResponse && !editingResponse ? (
+            <div style={{ background: t.surface, border: '1px solid ' + t.divider, borderRadius: 14, padding: '14px 16px' }}>
+              <Markdown t={t} text={data.nlmResponse} />
+            </div>
+          ) : (
+            <>
+              <div style={{ fontFamily: t.fonts.body, fontSize: 11.5, color: t.fgFaint, lineHeight: 1.5, marginBottom: 10 }}>
+                Copia el prompt de arriba, pégalo en NotebookLM, y pega aquí su respuesta. Se mostrará como tu análisis y marcará este tema como explorado.
+              </div>
+              <textarea
+                value={data.nlmResponse || ''}
+                onChange={e => saveResponse(e.target.value)}
+                placeholder="Pega la respuesta de NotebookLM aquí..."
+                rows={6}
+                style={{
+                  width: '100%', background: t.s2, border: '1px solid ' + t.border,
+                  borderRadius: 12, padding: '12px 14px', color: t.fg,
+                  fontFamily: t.fonts.body, fontSize: 13, lineHeight: 1.5,
+                  outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+                }}
+              />
+              {data.nlmResponse && (
+                <button onClick={() => setEditingResponse(false)} style={{
+                  marginTop: 10, width: '100%', padding: '11px', borderRadius: 12, border: 'none',
+                  background: detail.color || t.accent, color: '#fff', cursor: 'pointer',
+                  fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14,
+                }}>Ver como análisis</button>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { getRecentActivity } from '../lib/healthConnect.js';
 import {
   ScreenFrame, StatusBar, PillarHeader,
   MonoLabel, SectionHead, Fab,
@@ -100,7 +101,7 @@ const WEEK_ROWS = [
   { offset:  1, label: '↓ próxima' },
 ];
 
-function ThreeWeekCalendar({ t, workoutDates }) {
+function ThreeWeekCalendar({ t, workoutDates, activityDates }) {
   const today = todayIso();
 
   return (
@@ -152,6 +153,7 @@ function ThreeWeekCalendar({ t, workoutDates }) {
                 const iso = isoDate(d);
                 const isToday = iso === today;
                 const hasWorkout = workoutDates.has(iso);
+                const hasActivity = !hasWorkout && activityDates?.has(iso);
 
                 return (
                   <div key={iso} style={{
@@ -196,8 +198,8 @@ function ThreeWeekCalendar({ t, workoutDates }) {
                       width: 5,
                       height: 5,
                       borderRadius: '50%',
-                      background: hasWorkout ? t.pillar.train : 'transparent',
-                      border: hasWorkout ? 'none' : `1.5px solid ${t.fgFaint}`,
+                      background: hasWorkout ? t.pillar.train : hasActivity ? t.secondary : 'transparent',
+                      border: (hasWorkout || hasActivity) ? 'none' : `1.5px solid ${t.fgFaint}`,
                     }}/>
                   </div>
                 );
@@ -774,6 +776,11 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
   const [loading,      setLoading]      = useState(true);
   const [showForm,     setShowForm]     = useState(false);
   const [showProgram,  setShowProgram]  = useState(false);
+  const [activity,     setActivity]     = useState([]); // phone-detected exercise sessions
+
+  useEffect(() => {
+    getRecentActivity(21).then(setActivity).catch(() => {});
+  }, []);
 
   const loadWorkouts = useCallback(async () => {
     if (!session?.user) return;
@@ -815,7 +822,41 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
         <ThreeWeekCalendar
           t={t}
           workoutDates={new Set(workouts.map(w => w.date))}
+          activityDates={new Set(activity.map(a => a.date))}
         />
+
+        {/* ── Phone-detected activity ── */}
+        {activity.length > 0 && (
+          <>
+            <SectionHead t={t}>actividad del teléfono</SectionHead>
+            <div style={{ margin: '8px 20px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {activity.slice(0, 6).map((a, i) => {
+                const logged = workouts.some(w => w.date === a.date);
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    background: t.surface, border: `1px solid ${t.divider}`,
+                    borderRadius: 12, padding: '10px 12px',
+                  }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.secondary, flexShrink: 0 }}/>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13, color: t.fg }}>{a.title}</div>
+                      <div style={{ fontFamily: t.fonts.mono, fontSize: 10, color: t.fgMuted, marginTop: 1 }}>
+                        {formatDate(a.date)} · {a.durationMin} min
+                      </div>
+                    </div>
+                    {logged
+                      ? <span style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, color: t.pillar.train, letterSpacing: '0.06em' }}>WOD ✓</span>
+                      : <span style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, color: t.secondary, letterSpacing: '0.06em' }}>REGISTRADO</span>}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ margin: '6px 20px 0', fontFamily: t.fonts.body, fontSize: 11, color: t.fgFaint }}>
+              Tu actividad física del teléfono queda registrada aunque no anotes el WOD.
+            </div>
+          </>
+        )}
 
         {/* ── Today ── */}
         <SectionHead t={t}>hoy</SectionHead>
