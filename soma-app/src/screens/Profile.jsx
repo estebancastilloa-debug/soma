@@ -10,7 +10,7 @@ import { F5, WordmarkWithMark } from '../marks.jsx';
 import { checkAvailability, requestPermissions, requestPermissionsVerbose } from '../lib/healthConnect.js';
 import { useTheme, INTENSITIES, ACCENTS } from '../theme.jsx';
 
-const APP_BUILD = 'b16';
+const APP_BUILD = 'b17';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -841,13 +841,12 @@ function SkillsCard({ t }) {
   const [prSkill, setPrSkill] = useState(null); // skill name whose edit sheet is open
   const [prInputs, setPrInputs] = useState({}); // temp input values in the sheet
   const [prUnit, setPrUnit] = useState('kg');   // weight unit in the sheet
-  const [prName, setPrName] = useState('');      // editable movement name
   const [prMetric, setPrMetric] = useState('weight'); // editable metric type
   const [adding, setAdding]   = useState(false);
   const [newSkill, setNewSkill] = useState('');
-  // user-edited movement lists per group (overrides defaults)
-  const [skillLists, setSkillLists] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('soma_skill_lists') || '{}'); }
+  // EXTRA movements the user adds, per group (defaults always stay intact)
+  const [customSkills, setCustomSkills] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('soma_skill_custom') || '{}'); }
     catch { return {}; }
   });
   // per-movement metric override
@@ -861,37 +860,16 @@ function SkillsCard({ t }) {
   const today = () => new Date().toISOString().slice(0, 10);
 
   function defaultList(group) { return SKILL_GROUPS.find(g => g.group === group)?.skills || []; }
-  function getList(group)     { return skillLists[group] || defaultList(group); }
-  function persistLists(next) { setSkillLists(next); localStorage.setItem('soma_skill_lists', JSON.stringify(next)); }
-  function withGroup(next, group) { if (!next[group]) next[group] = [...defaultList(group)]; return next; }
+  function getList(group)     { return [...defaultList(group), ...(customSkills[group] || [])]; }
+  function isCustom(skill)    { return (customSkills[activeGroup] || []).includes(skill); }
 
   function metricFor(skill) { return skillMetrics[skill] || GROUP_METRIC[activeGroup] || 'weight'; }
 
-  // migrate level + PR + metric data when a movement is renamed
-  function migrateKey(oldName, newName) {
-    if (!oldName || !newName || oldName === newName) return;
-    if (skills[oldName] != null) {
-      const n = { ...skills }; n[newName] = n[oldName]; delete n[oldName];
-      setSkills(n); localStorage.setItem(LS_MOVEMENTS, JSON.stringify(n));
-    }
-    if (prs[oldName]) {
-      const n = { ...prs }; n[newName] = n[oldName]; delete n[oldName];
-      setPrs(n); saveSkillPrs(n);
-    }
-    if (skillMetrics[oldName]) {
-      const n = { ...skillMetrics }; n[newName] = n[oldName]; delete n[oldName];
-      setSkillMetrics(n); localStorage.setItem('soma_skill_metrics', JSON.stringify(n));
-    }
-    // rename inside the group list
-    const next = withGroup({ ...skillLists }, activeGroup);
-    const idx = next[activeGroup].indexOf(oldName);
-    if (idx >= 0) { next[activeGroup] = next[activeGroup].slice(); next[activeGroup][idx] = newName; persistLists(next); }
-  }
-
   function removeSkill(name) {
-    const next = withGroup({ ...skillLists }, activeGroup);
-    next[activeGroup] = next[activeGroup].filter(s => s !== name);
-    persistLists(next);
+    // only custom movements can be removed; defaults always stay
+    const next = { ...customSkills, [activeGroup]: (customSkills[activeGroup] || []).filter(s => s !== name) };
+    setCustomSkills(next);
+    localStorage.setItem('soma_skill_custom', JSON.stringify(next));
     if (skills[name] != null) { const n = { ...skills }; delete n[name]; setSkills(n); localStorage.setItem(LS_MOVEMENTS, JSON.stringify(n)); }
     if (prs[name]) { const n = { ...prs }; delete n[name]; setPrs(n); saveSkillPrs(n); }
     if (skillMetrics[name]) { const n = { ...skillMetrics }; delete n[name]; setSkillMetrics(n); localStorage.setItem('soma_skill_metrics', JSON.stringify(n)); }
@@ -901,9 +879,12 @@ function SkillsCard({ t }) {
   function addSkill() {
     const name = newSkill.trim();
     if (!name) return;
-    const next = withGroup({ ...skillLists }, activeGroup);
-    if (!next[activeGroup].includes(name)) next[activeGroup] = [...next[activeGroup], name];
-    persistLists(next);
+    const list = customSkills[activeGroup] || [];
+    if (!list.includes(name) && !defaultList(activeGroup).includes(name)) {
+      const next = { ...customSkills, [activeGroup]: [...list, name] };
+      setCustomSkills(next);
+      localStorage.setItem('soma_skill_custom', JSON.stringify(next));
+    }
     setNewSkill(''); setAdding(false);
   }
 
@@ -916,7 +897,6 @@ function SkillsCard({ t }) {
 
   function openPrSheet(skill) {
     const existing = prs[skill] || {};
-    setPrName(skill);
     setPrMetric(metricFor(skill));
     const inputs = {};
     PR_REPS.forEach(r => { inputs[r] = existing[r]?.value ?? ''; });
@@ -928,12 +908,8 @@ function SkillsCard({ t }) {
   }
 
   function savePrs() {
-    const original = prSkill;
+    const skill = prSkill;
     const metric = prMetric;
-    // handle rename first
-    const newName = prName.trim();
-    if (newName && newName !== original) migrateKey(original, newName);
-    const skill = newName || original;
 
     // persist metric choice
     const nm = { ...skillMetrics, [skill]: metric };
@@ -1116,14 +1092,9 @@ function SkillsCard({ t }) {
           }}>
             <DragHandle t={t}/>
 
-            {/* Editable name */}
-            <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: t.fgFaint, textTransform: 'uppercase', marginBottom: 6 }}>Movimiento</div>
-            <input
-              value={prName}
-              onChange={e => setPrName(e.target.value)}
-              style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', borderRadius: 12, border: `1px solid ${t.border}`,
-                background: t.surface, color: t.fg, fontFamily: t.fonts.body, fontWeight: 700, fontSize: 15, outline: 'none', marginBottom: 16 }}
-            />
+            {/* Movement name (read-only) */}
+            <div style={{ fontFamily: t.fonts.display, fontWeight: 700, fontSize: 19, color: t.fg, marginBottom: 4 }}>{prSkill}</div>
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 9, color: t.fgFaint, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 18 }}>Editar récord</div>
 
             {/* Metric type selector */}
             <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: t.fgFaint, textTransform: 'uppercase', marginBottom: 8 }}>Métrica</div>
@@ -1249,13 +1220,15 @@ function SkillsCard({ t }) {
             }}>
               Guardar
             </button>
-            <button onClick={() => removeSkill(prSkill)} style={{
-              width: '100%', marginTop: 10, padding: '12px', borderRadius: 14,
-              border: `1px solid ${t.semantic.low}44`, background: 'transparent', color: t.semantic.low,
-              cursor: 'pointer', fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13,
-            }}>
-              Eliminar movimiento
-            </button>
+            {isCustom(prSkill) && (
+              <button onClick={() => removeSkill(prSkill)} style={{
+                width: '100%', marginTop: 10, padding: '12px', borderRadius: 14,
+                border: `1px solid ${t.semantic.low}44`, background: 'transparent', color: t.semantic.low,
+                cursor: 'pointer', fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13,
+              }}>
+                Eliminar movimiento personalizado
+              </button>
+            )}
           </div>
         </div>
       )}
