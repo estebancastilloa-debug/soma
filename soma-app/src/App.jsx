@@ -220,7 +220,7 @@ export default function App() {
     setAddSheet(false);
     if (action.startsWith('log:')) {
       const kind = action.slice(4);
-      if (kind === 'workout') { setModal('tpl'); return; }
+      if (kind === 'workout') { try { sessionStorage.setItem('soma_open_logform', '1'); } catch {} setScreen('train'); return; }
       if (kind === 'meal')    { setScreen('eat'); return; }
       if (kind === 'mood')    { setScreen('journal'); return; }
       if (kind === 'water')   { setScreen('eat'); return; }

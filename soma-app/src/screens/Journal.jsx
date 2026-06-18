@@ -241,6 +241,39 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
     } catch { return []; }
   });
 
+  // Custom challenges generated from NotebookLM, tracked as a checklist
+  const [challenges, setChallenges] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('soma_psych_challenges') || '{}')[item.id] || []; }
+    catch { return []; }
+  });
+  const [challengeInput, setChallengeInput] = useState('');
+  const [challengeCopied, setChallengeCopied] = useState(false);
+
+  function persistChallenges(next) {
+    setChallenges(next);
+    try {
+      const all = JSON.parse(localStorage.getItem('soma_psych_challenges') || '{}');
+      all[item.id] = next;
+      localStorage.setItem('soma_psych_challenges', JSON.stringify(all));
+    } catch {}
+  }
+  function toggleChallenge(id) { persistChallenges(challenges.map(c => c.id === id ? { ...c, done: !c.done } : c)); }
+  function removeChallenge(id) { persistChallenges(challenges.filter(c => c.id !== id)); }
+  function addChallengesFromText(text) {
+    const lines = text.split('\n').map(l => l.replace(/^[-*•\d.\)\s]+/, '').trim()).filter(l => l.length > 3);
+    if (!lines.length) return;
+    const items = lines.map((tx, i) => ({ id: `${Date.now()}-${i}`, text: tx, done: false }));
+    persistChallenges([...challenges, ...items]);
+    setChallengeInput('');
+  }
+  const challengePrompt = `Genera 6 retos prácticos, específicos y accionables para trabajar mi "${item.lab}" durante esta semana, basándote en mi perfil y en nuestro análisis. Cada reto en una sola línea empezando con "- ", medibles y concretos. Devuelve SOLO la lista, sin explicaciones ni encabezados.`;
+  function copyChallengePrompt() {
+    navigator.clipboard.writeText(challengePrompt).then(() => {
+      setChallengeCopied(true); setTimeout(() => setChallengeCopied(false), 2000);
+    }).catch(() => {});
+  }
+  const doneChallenges = challenges.filter(c => c.done).length;
+
   // quiz answers stored in psych data: data.quizAnswers = {qIndex: optIndex}, data.quizResult = key
   const quizAnswers = data.quizAnswers || {};
   function answerQuiz(qIndex, optIndex) {
@@ -518,6 +551,80 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
           </div>
         )}
 
+        {/* RETOS PERSONALIZADOS (generados con NotebookLM) */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + t.divider }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase' }}>
+              Retos personalizados {challenges.length > 0 && `· ${doneChallenges}/${challenges.length}`}
+            </div>
+            <button onClick={copyChallengePrompt} style={{
+              padding: '5px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
+              background: challengeCopied ? (t.semantic?.ok || '#34c759') : t.surface,
+              color: challengeCopied ? '#fff' : t.fg,
+              fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            }}>
+              {challengeCopied ? '✓ COPIADO' : 'PROMPT'}
+            </button>
+          </div>
+          <div style={{ fontFamily: t.fonts.body, fontSize: 11.5, color: t.fgFaint, lineHeight: 1.5, marginBottom: 12 }}>
+            Copia el prompt → pégalo en NotebookLM → pega aquí los retos que te dé. Se convierten en una lista que puedes ir completando.
+          </div>
+
+          {/* Challenge checklist */}
+          {challenges.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
+              {challenges.map(c => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <button onClick={() => toggleChallenge(c.id)} style={{
+                    flex: 1, display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left',
+                    padding: '11px 13px', borderRadius: 12, cursor: 'pointer',
+                    border: c.done ? `2px solid ${detail.color || t.accent}` : '1px solid ' + t.border,
+                    background: c.done ? `${detail.color || t.accent}15` : t.surface,
+                  }}>
+                    <div style={{
+                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                      border: c.done ? 'none' : `1.5px solid ${t.fgFaint}`,
+                      background: c.done ? (detail.color || t.accent) : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {c.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="4,12 10,18 20,6"/></svg>}
+                    </div>
+                    <span style={{ fontFamily: t.fonts.body, fontSize: 13, color: c.done ? t.fgMuted : t.fg, lineHeight: 1.4, textDecoration: c.done ? 'line-through' : 'none' }}>
+                      {c.text}
+                    </span>
+                  </button>
+                  <button onClick={() => removeChallenge(c.id)} style={{
+                    width: 26, height: 26, borderRadius: 7, flexShrink: 0, marginTop: 6, border: 'none',
+                    background: 'transparent', color: t.fgFaint, cursor: 'pointer', fontSize: 15,
+                  }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Paste box */}
+          <textarea
+            value={challengeInput}
+            onChange={e => setChallengeInput(e.target.value)}
+            placeholder="Pega aquí los retos de NotebookLM (uno por línea)…"
+            rows={3}
+            style={{
+              width: '100%', background: t.s2, border: '1px solid ' + t.border, borderRadius: 12,
+              padding: '11px 13px', color: t.fg, fontFamily: t.fonts.body, fontSize: 13, lineHeight: 1.5,
+              outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+            }}
+          />
+          {challengeInput.trim() && (
+            <button onClick={() => addChallengesFromText(challengeInput)} style={{
+              marginTop: 8, width: '100%', padding: '11px', borderRadius: 12, border: 'none',
+              background: detail.color || t.accent, color: '#fff', cursor: 'pointer',
+              fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14,
+            }}>
+              Agregar retos a mi lista
+            </button>
+          )}
+        </div>
+
         {/* MIS NOTAS */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + t.divider }}>
           <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase', marginBottom: 10 }}>
@@ -590,7 +697,23 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
 // ─── JournalScreen ─────────────────────────────────────────────────────
 export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   const { user } = useAuth();
-  const today = new Date().toISOString().slice(0, 10);
+  // `today` is reactive: mobile apps stay in memory across days, so we refresh
+  // the date on resume/visibility so daily data (habits, mood) resets correctly.
+  const [today, setToday] = useState(() => new Date().toISOString().slice(0, 10));
+  useEffect(() => {
+    function check() {
+      const d = new Date().toISOString().slice(0, 10);
+      setToday(prev => (prev !== d ? d : prev));
+    }
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    const interval = setInterval(check, 60000);
+    return () => {
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+      clearInterval(interval);
+    };
+  }, []);
 
   const [tab, setTab] = useState('dia');
   const [mood, setMood] = useState(3);
@@ -660,8 +783,17 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   const journalTimer = useRef(null);
   const locusTimer   = useRef(null);
 
-  // Load today's log
+  // Load today's log — re-runs when the day changes (resets daily data)
   useEffect(() => {
+    // reset per-day state from localStorage for the (possibly new) day
+    const localDay = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) || '{}')[today] ?? fallback; } catch { return fallback; } };
+    setHabits(localDay('soma_habits_done', []) || []);
+    setPhysMood(localDay('soma_phys_mood', null));
+    setBodyAreas(normalizeAreas((() => { try { return JSON.parse(localStorage.getItem('soma_body_areas') || '{}')[today]; } catch { return null; } })()));
+    setMood(3);
+    setJournalText('');
+    setLocusAnswers({ q1: '', q2: '', q3: '' });
+
     if (!user) return;
     supabase.from('daily_log').select('*')
       .eq('user_id', user.id).eq('date', today).maybeSingle()
@@ -676,7 +808,7 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
           try { setLocusAnswers(JSON.parse(data.locus_text)); } catch {}
         }
       });
-  }, [user]);
+  }, [user, today]);
 
   // Persist daily habit completions to localStorage (always works offline)
   function persistHabitsLocal(arr) {

@@ -780,6 +780,12 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
 
   useEffect(() => {
     getRecentActivity(21).then(setActivity).catch(() => {});
+    try {
+      if (sessionStorage.getItem('soma_open_logform') === '1') {
+        sessionStorage.removeItem('soma_open_logform');
+        setShowForm(true);
+      }
+    } catch {}
   }, []);
 
   const loadWorkouts = useCallback(async () => {
