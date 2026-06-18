@@ -1,5 +1,29 @@
 // SOMA shared chrome — StatusBar, DrawerMenu, Fab, PillarHeader, etc.
+import { useRef } from 'react';
 import { F5, WordmarkWithMark } from './marks.jsx';
+
+// ─── Bottom-sheet drag handle + swipe-down to dismiss ───────────────
+export function DragHandle({ t }) {
+  return (
+    <div style={{ width: 40, height: 5, borderRadius: 3, background: t.divider,
+      margin: '0 auto 16px' }}/>
+  );
+}
+
+// returns touch handlers; dragging the sheet down past a threshold closes it
+export function useSwipeDown(onClose) {
+  const startY = useRef(null);
+  return {
+    onTouchStart: e => { startY.current = e.touches[0].clientY; },
+    onTouchEnd: e => {
+      if (startY.current != null) {
+        const dy = e.changedTouches[0].clientY - startY.current;
+        if (dy > 70) onClose();
+      }
+      startY.current = null;
+    },
+  };
+}
 import {
   IconSignal, IconWifi, IconBattery,
   IconHome, IconTrain, IconEat, IconRecords, IconJournal, IconProfile,

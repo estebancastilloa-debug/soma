@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useTheme } from './theme.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 import { DrawerMenu, AddSheet, BottomTabBar } from './chrome.jsx';
 import { AuthScreen } from './screens/Auth.jsx';
+import { popBack } from './lib/backstack.js';
 
 import { DashboardScreen }  from './screens/Dashboard.jsx';
 import { TrainScreen }      from './screens/Train.jsx';
@@ -181,6 +183,25 @@ export default function App() {
   const [addSheet, setAddSheet] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [modal, setModal] = useState(null);
+
+  // Android back gesture / button → close topmost overlay, else go home
+  const backRef = useRef(null);
+  backRef.current = () => {
+    if (popBack()) return;                       // screen-level overlays
+    if (modal)    { setModal(null);   return; }
+    if (addSheet) { setAddSheet(false); return; }
+    if (drawer)   { setDrawer(false); return; }
+    if (screen !== 'home') { setScreen('home'); return; }
+    import('@capacitor/app').then(({ App }) => App.exitApp()).catch(() => {});
+  };
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let sub;
+    import('@capacitor/app').then(({ App }) => {
+      App.addListener('backButton', () => backRef.current && backRef.current()).then(s => { sub = s; });
+    }).catch(() => {});
+    return () => { sub && sub.remove(); };
+  }, []);
 
   // Auth gating
   if (loading) return <LoadingScreen t={t}/>;

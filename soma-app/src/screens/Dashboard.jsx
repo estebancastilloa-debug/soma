@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
   ScreenFrame, StatusBar, MenuButton, MonoLabel,
-  SectionHead, Fab,
+  SectionHead, Fab, DragHandle, useSwipeDown,
 } from '../chrome.jsx';
+import { useBackClose } from '../lib/backstack.js';
 import { F5, WordmarkWithMark } from '../marks.jsx';
 import {
   IconRecovery, IconDumbbellSmall, IconProtein,
@@ -76,6 +77,8 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
   const [hcStatus,     setHcStatus]     = useState('idle'); // idle|unavailable|needs-permission|connected
   const [todayMood,    setTodayMood]    = useState(null);
   const [showReadiness, setShowReadiness] = useState(false);
+  useBackClose(showReadiness, () => setShowReadiness(false));
+  const readinessSwipe = useSwipeDown(() => setShowReadiness(false));
 
   // Health Connect
   useEffect(() => {
@@ -296,14 +299,12 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
       {showReadiness && readiness && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 95, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}
           onClick={() => setShowReadiness(false)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            width: '100%', background: t.bg, borderRadius: '24px 24px 0 0', padding: '22px 20px 40px',
+          <div onClick={e => e.stopPropagation()} {...readinessSwipe} style={{
+            width: '100%', background: t.bg, borderRadius: '24px 24px 0 0', padding: '12px 20px 40px',
             maxHeight: '88%', overflowY: 'auto',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div style={{ fontFamily: t.fonts.display, fontWeight: 700, fontSize: 22, color: t.fg }}>Readiness</div>
-              <button onClick={() => setShowReadiness(false)} style={{ width: 34, height: 34, borderRadius: '50%', border: 'none', background: t.surface, color: t.fg, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-            </div>
+            <DragHandle t={t}/>
+            <div style={{ fontFamily: t.fonts.display, fontWeight: 700, fontSize: 22, color: t.fg, marginBottom: 16 }}>Readiness</div>
 
             {/* Big score */}
             <div style={{ background: readiness.color, borderRadius: 18, padding: '18px 20px', marginBottom: 16, color: '#0A0908' }}>

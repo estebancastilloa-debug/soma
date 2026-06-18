@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getTodayHealthData } from '../lib/healthConnect.js';
 import { computeReadiness } from '../lib/readiness.js';
-import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab } from '../chrome.jsx';
+import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab, DragHandle, useSwipeDown } from '../chrome.jsx';
+import { useBackClose } from '../lib/backstack.js';
 import { IconHeart, IconRecovery, IconSleep, IconWater, MOOD_ICONS, MOOD_LABELS } from '../icons.jsx';
 import { HABITS, PROMPTS } from '../data/habits.js';
 
@@ -454,6 +455,7 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     } catch { return {}; }
   });
   const [painSheetArea, setPainSheetArea] = useState(null); // area being edited
+  const painSwipe = useSwipeDown(() => setPainSheetArea(null));
 
   // Psychology biometric lock
   const [psychUnlocked, setPsychUnlocked] = useState(false);
@@ -482,6 +484,9 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     } catch { return HABITS.slice(0, 8).map(h => h.id); }
   });
   const [showHabitEdit, setShowHabitEdit] = useState(false);
+  useBackClose(!!painSheetArea, () => setPainSheetArea(null));
+  useBackClose(!!psychDetailItem, () => setPsychDetailItem(null));
+  useBackClose(showHabitEdit, () => setShowHabitEdit(false));
 
   const journalTimer = useRef(null);
   const locusTimer   = useRef(null);
@@ -855,10 +860,10 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                     {readiness.score}
                   </div>
                 </div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:10 }}>
-                  {readiness.parts.map(p => (
+                <div style={{ display:'flex', flexWrap:'wrap', gap:10, marginTop:10 }}>
+                  {readiness.components.map(p => (
                     <span key={p.key} style={{ fontFamily:t.fonts.mono, fontSize:9.5, fontWeight:700, color:'#0A0908', opacity:0.7 }}>
-                      {p.key} {p.penalty > 0 ? `−${p.penalty}` : '✓'}
+                      {p.key} {p.score}
                     </span>
                   ))}
                 </div>
@@ -1282,11 +1287,9 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
         return (
           <div style={{ position:'absolute', inset:0, zIndex:96, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'flex-end' }}
             onClick={() => setPainSheetArea(null)}>
-            <div onClick={e => e.stopPropagation()} style={{ width:'100%', background:t.bg, borderRadius:'22px 22px 0 0', padding:'22px 20px 40px' }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18 }}>
-                <div style={{ fontFamily:t.fonts.display, fontWeight:700, fontSize:20, color:t.fg }}>{painSheetArea}</div>
-                <button onClick={() => setPainSheetArea(null)} style={{ width:34, height:34, borderRadius:'50%', border:'none', background:t.surface, color:t.fg, cursor:'pointer', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
-              </div>
+            <div onClick={e => e.stopPropagation()} {...painSwipe} style={{ width:'100%', background:t.bg, borderRadius:'22px 22px 0 0', padding:'12px 20px 40px' }}>
+              <DragHandle t={t}/>
+              <div style={{ fontFamily:t.fonts.display, fontWeight:700, fontSize:20, color:t.fg, marginBottom:18 }}>{painSheetArea}</div>
 
               {/* Intensity */}
               <div style={{ fontFamily:t.fonts.mono, fontSize:10, fontWeight:700, letterSpacing:'0.14em', color:t.fgFaint, textTransform:'uppercase', marginBottom:8 }}>Intensidad</div>
@@ -1349,14 +1352,17 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
       {/* Habit edit overlay */}
       {showHabitEdit && (
         <div style={{ position:'absolute', inset:0, zIndex:90, background:t.bg, display:'flex', flexDirection:'column' }}>
-          <div style={{ padding:'52px 20px 12px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ padding:'52px 20px 12px' }}>
+            <button onClick={() => setShowHabitEdit(false)} style={{
+              border:'none', background:'transparent', cursor:'pointer', padding:'0 0 12px',
+              fontFamily:t.fonts.body, fontSize:14, fontWeight:600, color:t.fgMuted,
+              display:'flex', alignItems:'center', gap:6,
+            }}>
+              <span style={{ fontSize:18 }}>←</span> Atrás
+            </button>
             <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:22, letterSpacing:'-0.03em', color:t.fg }}>
               Mis hábitos
             </div>
-            <button onClick={() => setShowHabitEdit(false)} style={{
-              width:34, height:34, borderRadius:'50%', border:'none', background:t.surface,
-              color:t.fg, cursor:'pointer', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center',
-            }}>×</button>
           </div>
           <div style={{ fontFamily:t.fonts.body, fontSize:13, color:t.fgMuted, padding:'0 20px 16px', lineHeight:1.5 }}>
             Selecciona los hábitos que quieres rastrear cada día. Estos aparecerán en tu grid diario.

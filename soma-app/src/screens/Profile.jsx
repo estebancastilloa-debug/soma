@@ -2,13 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
-  StatusBar, MonoLabel, ScreenFrame, Fab, PillarHeader,
+  StatusBar, MonoLabel, ScreenFrame, Fab, PillarHeader, DragHandle, useSwipeDown,
 } from '../chrome.jsx';
+import { useBackClose } from '../lib/backstack.js';
 import { F5, WordmarkWithMark } from '../marks.jsx';
 import { checkAvailability, requestPermissions, requestPermissionsVerbose } from '../lib/healthConnect.js';
 import { useTheme, INTENSITIES, ACCENTS } from '../theme.jsx';
 
-const APP_BUILD = 'b9';
+const APP_BUILD = 'b10';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -558,6 +559,8 @@ function EquipmentCard({ t }) {
   const [customInput, setCustomInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [infoItem, setInfoItem] = useState(null); // { name, kb }
+  useBackClose(!!infoItem, () => setInfoItem(null));
+  const infoSwipe = useSwipeDown(() => setInfoItem(null));
 
   function toggle(name) {
     const next = new Set(checked);
@@ -735,14 +738,12 @@ function EquipmentCard({ t }) {
           position: 'fixed', inset: 0, zIndex: 200,
           background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end',
         }} onClick={() => setInfoItem(null)}>
-          <div onClick={e => e.stopPropagation()} style={{
+          <div onClick={e => e.stopPropagation()} {...infoSwipe} style={{
             width: '100%', background: t.bg, borderRadius: '20px 20px 0 0',
-            padding: '20px 20px 40px', maxHeight: '70vh', overflow: 'auto',
+            padding: '12px 20px 40px', maxHeight: '70vh', overflow: 'auto',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16, color: t.fg }}>{infoItem.name}</div>
-              <button onClick={() => setInfoItem(null)} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: t.surface, color: t.fg, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-            </div>
+            <DragHandle t={t}/>
+            <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16, color: t.fg, marginBottom: 14 }}>{infoItem.name}</div>
             <div style={{ fontFamily: t.fonts.body, fontSize: 13.5, color: t.fgMuted, lineHeight: 1.6, marginBottom: 14 }}>
               {infoItem.kb.desc}
             </div>
@@ -845,6 +846,8 @@ function SkillsCard({ t }) {
     try { return JSON.parse(localStorage.getItem('soma_custom_skills') || '{}'); }
     catch { return {}; }
   });
+  useBackClose(!!prSkill, () => setPrSkill(null));
+  const prSwipe = useSwipeDown(() => setPrSkill(null));
 
   const today = () => new Date().toISOString().slice(0, 10);
 
@@ -1070,15 +1073,13 @@ function SkillsCard({ t }) {
           position: 'fixed', inset: 0, zIndex: 200,
           background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end',
         }} onClick={() => setPrSkill(null)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            width: '100%', background: t.bg, borderRadius: '20px 20px 0 0', padding: '20px 20px 40px',
+          <div onClick={e => e.stopPropagation()} {...prSwipe} style={{
+            width: '100%', background: t.bg, borderRadius: '20px 20px 0 0', padding: '12px 20px 40px',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div>
-                <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16, color: t.fg }}>{prSkill}</div>
-                <div style={{ fontFamily: t.fonts.mono, fontSize: 9, color: t.fgFaint, letterSpacing: '0.14em', marginTop: 2 }}>ALL-TIME PR · {metricLabel}</div>
-              </div>
-              <button onClick={() => setPrSkill(null)} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: t.surface, color: t.fg, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            <DragHandle t={t}/>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16, color: t.fg }}>{prSkill}</div>
+              <div style={{ fontFamily: t.fonts.mono, fontSize: 9, color: t.fgFaint, letterSpacing: '0.14em', marginTop: 2 }}>ALL-TIME PR · {metricLabel}</div>
             </div>
 
             {/* WEIGHT: unit toggle + rep-max table */}

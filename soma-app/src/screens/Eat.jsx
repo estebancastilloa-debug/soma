@@ -3,6 +3,7 @@ import {
   ScreenFrame, StatusBar, PillarHeader,
   MonoLabel, SectionHead, Fab,
 } from '../chrome.jsx';
+import { useBackClose } from '../lib/backstack.js';
 import { F5 } from '../marks.jsx';
 import {
   IconSearch, IconCamera, IconMic,
@@ -194,14 +195,13 @@ function PantryModal({ t, onClose }) {
         <button
           onClick={onClose}
           style={{
-            background: t.surface, border: `1px solid ${t.divider}`,
-            borderRadius: '50%', width: 32, height: 32,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent', border: 'none',
+            display: 'flex', alignItems: 'center', gap: 6,
             cursor: 'pointer', color: t.fgMuted,
-            fontFamily: t.fonts.mono, fontSize: 16, fontWeight: 700,
+            fontFamily: t.fonts.body, fontSize: 14, fontWeight: 600,
           }}
         >
-          ×
+          <span style={{ fontSize: 18 }}>←</span> Atrás
         </button>
       </div>
 
@@ -338,14 +338,13 @@ function MealsModal({ t, onClose }) {
         <button
           onClick={onClose}
           style={{
-            background: t.surface, border: `1px solid ${t.divider}`,
-            borderRadius: '50%', width: 32, height: 32,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent', border: 'none',
+            display: 'flex', alignItems: 'center', gap: 6,
             cursor: 'pointer', color: t.fgMuted,
-            fontFamily: t.fonts.mono, fontSize: 16, fontWeight: 700,
+            fontFamily: t.fonts.body, fontSize: 14, fontWeight: 600,
           }}
         >
-          ×
+          <span style={{ fontSize: 18 }}>←</span> Atrás
         </button>
       </div>
       <div style={{
@@ -376,6 +375,8 @@ const MACRO_GOALS = { protein: 165, carbs: 250, fat: 85 };
 export function EatScreen({ t, onNav, onMenu, onPlus }) {
   const [showPantry, setShowPantry] = useState(false);
   const [showMeals, setShowMeals]   = useState(false);
+  useBackClose(showPantry, () => setShowPantry(false));
+  useBackClose(showMeals, () => setShowMeals(false));
 
   // Real pantry data
   const pantry = (() => {
