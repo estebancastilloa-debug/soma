@@ -260,13 +260,48 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
   function toggleChallenge(id) { persistChallenges(challenges.map(c => c.id === id ? { ...c, done: !c.done } : c)); }
   function removeChallenge(id) { persistChallenges(challenges.filter(c => c.id !== id)); }
   function addChallengesFromText(text) {
-    const lines = text.split('\n').map(l => l.replace(/^[-*•\d.\)\s]+/, '').trim()).filter(l => l.length > 3);
-    if (!lines.length) return;
-    const items = lines.map((tx, i) => ({ id: `${Date.now()}-${i}`, text: tx, done: false }));
+    const lines = text.split('\n');
+    let cat = 'Plan';
+    const items = [];
+    lines.forEach((raw, i) => {
+      const line = raw.trim();
+      if (!line) return;
+      const bullet = line.match(/^[-*•]\s+(.*)$/) || line.match(/^\d+[.)]\s+(.*)$/);
+      if (bullet) {
+        const tx = bullet[1].trim();
+        if (tx.length > 2) items.push({ id: `${Date.now()}-${i}`, text: tx, done: false, cat });
+      } else if (line.length < 70 && (line.endsWith(':') || line === line.toUpperCase())) {
+        cat = line.replace(/:$/, '').trim();
+      }
+    });
+    if (!items.length) return;
     persistChallenges([...challenges, ...items]);
     setChallengeInput('');
   }
-  const challengePrompt = `Genera 6 retos prácticos, específicos y accionables para trabajar mi "${item.lab}" durante esta semana, basándote en mi perfil y en nuestro análisis. Cada reto en una sola línea empezando con "- ", medibles y concretos. Devuelve SOLO la lista, sin explicaciones ni encabezados.`;
+  // group challenges by their section
+  const groupedChallenges = challenges.reduce((acc, c) => {
+    const k = c.cat || 'Plan';
+    (acc[k] = acc[k] || []).push(c);
+    return acc;
+  }, {});
+  const challengePrompt = `Actúa como mi coach de desarrollo personal. Basándote en mi perfil y en el análisis de "${item.lab}", arma un PLAN COMPUESTO. Usa exactamente este formato y pon CADA elemento accionable en su propia línea empezando con "- " (para poder marcarlos como tareas):
+
+DIAGNÓSTICO:
+- 2 o 3 frases que aterricen mi situación actual con "${item.lab}".
+
+PREGUNTAS PARA PROFUNDIZAR:
+- 3 preguntas potentes que me ayuden a entenderme mejor.
+
+TEST PARA ATERRIZAR EL DIAGNÓSTICO:
+- 3 afirmaciones tipo test que pueda evaluar (verdadero/falso o con un ejemplo) para identificar mi patrón.
+
+RETOS DE LA SEMANA:
+- 5 retos prácticos, medibles y accionables.
+
+SOLUCIONES Y ESTRATEGIAS PARA GESTIONARLO:
+- 3 estrategias concretas para manejarlo en mi día a día.
+
+Devuelve el plan completo siguiendo ese formato, sin texto extra al inicio ni al final.`;
   function copyChallengePrompt() {
     navigator.clipboard.writeText(challengePrompt).then(() => {
       setChallengeCopied(true); setTimeout(() => setChallengeCopied(false), 2000);
@@ -551,11 +586,11 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
           </div>
         )}
 
-        {/* RETOS PERSONALIZADOS (generados con NotebookLM) */}
+        {/* PLAN PERSONALIZADO (compuesto, generado con NotebookLM) */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + t.divider }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase' }}>
-              Retos personalizados {challenges.length > 0 && `· ${doneChallenges}/${challenges.length}`}
+              Plan personalizado {challenges.length > 0 && `· ${doneChallenges}/${challenges.length}`}
             </div>
             <button onClick={copyChallengePrompt} style={{
               padding: '5px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
@@ -567,47 +602,52 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
             </button>
           </div>
           <div style={{ fontFamily: t.fonts.body, fontSize: 11.5, color: t.fgFaint, lineHeight: 1.5, marginBottom: 12 }}>
-            Copia el prompt → pégalo en NotebookLM → pega aquí los retos que te dé. Se convierten en una lista que puedes ir completando.
+            Copia el prompt → pégalo en NotebookLM → pega aquí su respuesta. Genera diagnóstico, preguntas, un test, retos y estrategias — todo en una lista que puedes ir trabajando y marcando.
           </div>
 
-          {/* Challenge checklist */}
-          {challenges.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
-              {challenges.map(c => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <button onClick={() => toggleChallenge(c.id)} style={{
-                    flex: 1, display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left',
-                    padding: '11px 13px', borderRadius: 12, cursor: 'pointer',
-                    border: c.done ? `2px solid ${detail.color || t.accent}` : '1px solid ' + t.border,
-                    background: c.done ? `${detail.color || t.accent}15` : t.surface,
-                  }}>
-                    <div style={{
-                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0, marginTop: 1,
-                      border: c.done ? 'none' : `1.5px solid ${t.fgFaint}`,
-                      background: c.done ? (detail.color || t.accent) : 'transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+          {/* Plan grouped by section */}
+          {Object.entries(groupedChallenges).map(([cat, items]) => (
+            <div key={cat} style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', color: t.fgFaint, textTransform: 'uppercase', marginBottom: 6 }}>
+                {cat}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {items.map(c => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <button onClick={() => toggleChallenge(c.id)} style={{
+                      flex: 1, display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left',
+                      padding: '10px 12px', borderRadius: 12, cursor: 'pointer',
+                      border: c.done ? `2px solid ${detail.color || t.accent}` : '1px solid ' + t.border,
+                      background: c.done ? `${detail.color || t.accent}15` : t.surface,
                     }}>
-                      {c.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="4,12 10,18 20,6"/></svg>}
-                    </div>
-                    <span style={{ fontFamily: t.fonts.body, fontSize: 13, color: c.done ? t.fgMuted : t.fg, lineHeight: 1.4, textDecoration: c.done ? 'line-through' : 'none' }}>
-                      {c.text}
-                    </span>
-                  </button>
-                  <button onClick={() => removeChallenge(c.id)} style={{
-                    width: 26, height: 26, borderRadius: 7, flexShrink: 0, marginTop: 6, border: 'none',
-                    background: 'transparent', color: t.fgFaint, cursor: 'pointer', fontSize: 15,
-                  }}>×</button>
-                </div>
-              ))}
+                      <div style={{
+                        width: 19, height: 19, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                        border: c.done ? 'none' : `1.5px solid ${t.fgFaint}`,
+                        background: c.done ? (detail.color || t.accent) : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {c.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="4,12 10,18 20,6"/></svg>}
+                      </div>
+                      <span style={{ fontFamily: t.fonts.body, fontSize: 13, color: c.done ? t.fgMuted : t.fg, lineHeight: 1.45, textDecoration: c.done ? 'line-through' : 'none' }}>
+                        {c.text}
+                      </span>
+                    </button>
+                    <button onClick={() => removeChallenge(c.id)} style={{
+                      width: 24, height: 24, borderRadius: 7, flexShrink: 0, marginTop: 6, border: 'none',
+                      background: 'transparent', color: t.fgFaint, cursor: 'pointer', fontSize: 15,
+                    }}>×</button>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
+          ))}
 
           {/* Paste box */}
           <textarea
             value={challengeInput}
             onChange={e => setChallengeInput(e.target.value)}
-            placeholder="Pega aquí los retos de NotebookLM (uno por línea)…"
-            rows={3}
+            placeholder="Pega aquí la respuesta de NotebookLM…"
+            rows={4}
             style={{
               width: '100%', background: t.s2, border: '1px solid ' + t.border, borderRadius: 12,
               padding: '11px 13px', color: t.fg, fontFamily: t.fonts.body, fontSize: 13, lineHeight: 1.5,
@@ -620,7 +660,7 @@ function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
               background: detail.color || t.accent, color: '#fff', cursor: 'pointer',
               fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14,
             }}>
-              Agregar retos a mi lista
+              Agregar a mi plan
             </button>
           )}
         </div>
