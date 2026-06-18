@@ -8,7 +8,7 @@ import { F5, WordmarkWithMark } from '../marks.jsx';
 import { checkAvailability, requestPermissions, requestPermissionsVerbose } from '../lib/healthConnect.js';
 import { useTheme, INTENSITIES, ACCENTS } from '../theme.jsx';
 
-const APP_BUILD = 'b5';
+const APP_BUILD = 'b6';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
