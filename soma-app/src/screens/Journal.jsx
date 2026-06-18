@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getTodayHealthData } from '../lib/healthConnect.js';
+import { computeReadiness } from '../lib/readiness.js';
 import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab } from '../chrome.jsx';
 import { IconHeart, IconRecovery, IconSleep, IconWater, MOOD_ICONS, MOOD_LABELS } from '../icons.jsx';
 import { HABITS, PROMPTS } from '../data/habits.js';
@@ -32,6 +33,14 @@ const BODY_AREA_GROUPS = [
   { group: 'SUPERIOR', areas: ['Cuello', 'Hombro izq', 'Hombro der', 'Codo izq', 'Codo der', 'Muñeca izq', 'Muñeca der'] },
   { group: 'TORSO',    areas: ['Espalda alta', 'Lumbar', 'Pecho', 'Core'] },
   { group: 'INFERIOR', areas: ['Cadera', 'Cuádriceps izq', 'Cuádriceps der', 'Isquios izq', 'Isquios der', 'Rodilla izq', 'Rodilla der', 'Tobillo izq', 'Tobillo der'] },
+];
+
+// Pain intensity per body area (tap to cycle)
+const PAIN_LEVELS = [
+  { v: 0, label: '—',         color: null      },
+  { v: 1, label: 'Leve',      color: '#F5C542' },
+  { v: 2, label: 'Moderado',  color: '#F59E0B' },
+  { v: 3, label: 'Fuerte',    color: '#DC2626' },
 ];
 
 // ─── WebAuthn helpers ──────────────────────────────────────────────────
@@ -413,9 +422,13 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     try { return JSON.parse(localStorage.getItem('soma_phys_mood') || '{}')[today] || null; }
     catch { return null; }
   });
+  // body areas now store intensity per area: { areaName: 1-3 }
   const [bodyAreas, setBodyAreas] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('soma_body_areas') || '{}')[today] || []; }
-    catch { return []; }
+    try {
+      const raw = JSON.parse(localStorage.getItem('soma_body_areas') || '{}')[today];
+      if (Array.isArray(raw)) { const m = {}; raw.forEach(a => { m[a] = 2; }); return m; } // migrate legacy
+      return raw && typeof raw === 'object' ? raw : {};
+    } catch { return {}; }
   });
 
   // Psychology biometric lock
@@ -539,9 +552,14 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     // ── Estado Físico ──
     lines.push('## 💪 Estado Físico');
     const physLabel = PHYS_STATES.find(s => s.id === physMood)?.label || 'No registrado';
-    lines.push(`- **Estado:** ${physLabel}`);
-    if (bodyAreas.length > 0) {
-      lines.push(`- **Áreas que molestan:** ${bodyAreas.join(', ')}`);
+    lines.push(`- **Cansancio:** ${physLabel}`);
+    const painEntries = Object.entries(bodyAreas).filter(([, v]) => v > 0);
+    if (painEntries.length > 0) {
+      const painText = painEntries.map(([a, v]) => `${a} (${PAIN_LEVELS.find(p => p.v === v)?.label || v})`).join(', ');
+      lines.push(`- **Dolor:** ${painText}`);
+    }
+    if (readiness) {
+      lines.push(`- **Readiness:** ${readiness.score}/100 · ${readiness.label}`);
     }
     lines.push('');
 
@@ -636,8 +654,12 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     } catch {}
   }
 
-  function toggleBodyArea(area) {
-    const next = bodyAreas.includes(area) ? bodyAreas.filter(a => a !== area) : [...bodyAreas, area];
+  // tap cycles pain intensity 0 → 1 → 2 → 3 → 0
+  function cycleBodyArea(area) {
+    const cur = bodyAreas[area] || 0;
+    const nextVal = (cur + 1) % 4;
+    const next = { ...bodyAreas };
+    if (nextVal === 0) delete next[area]; else next[area] = nextVal;
     setBodyAreas(next);
     try {
       const all = JSON.parse(localStorage.getItem('soma_body_areas') || '{}');
@@ -650,12 +672,15 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     try {
       const all = JSON.parse(localStorage.getItem('soma_body_areas') || '{}');
       const counts = {};
-      Object.values(all).forEach(areas => {
-        (areas || []).forEach(a => { counts[a] = (counts[a] || 0) + 1; });
+      Object.values(all).forEach(day => {
+        if (Array.isArray(day)) day.forEach(a => { counts[a] = (counts[a] || 0) + 1; });
+        else if (day && typeof day === 'object') Object.keys(day).forEach(a => { if (day[a] > 0) counts[a] = (counts[a] || 0) + 1; });
       });
       return counts;
     } catch { return {}; }
   })();
+
+  const readiness = computeReadiness({ healthData, fatigueId: physMood, mentalMood: mood, painMap: bodyAreas });
 
   async function registerBiometric() {
     if (!window.PublicKeyCredential) {
@@ -763,13 +788,37 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
               </div>
             </div>
 
-            {/* Physical Mood */}
+            {/* Readiness card */}
+            {readiness && (
+              <div style={{ margin:'10px 20px 0', padding:16, background:readiness.color, borderRadius:18, position:'relative', overflow:'hidden' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div>
+                    <div style={{ fontFamily:t.fonts.mono, fontSize:9, fontWeight:700, letterSpacing:'0.16em', color:'#0A0908AA', textTransform:'uppercase' }}>readiness</div>
+                    <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:30, letterSpacing:'-0.04em', color:'#0A0908', lineHeight:1.1, marginTop:2 }}>
+                      {readiness.label}
+                    </div>
+                  </div>
+                  <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:46, letterSpacing:'-0.05em', color:'#0A0908', lineHeight:1 }}>
+                    {readiness.score}
+                  </div>
+                </div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:10 }}>
+                  {readiness.parts.map(p => (
+                    <span key={p.key} style={{ fontFamily:t.fonts.mono, fontSize:9.5, fontWeight:700, color:'#0A0908', opacity:0.7 }}>
+                      {p.key} {p.penalty > 0 ? `−${p.penalty}` : '✓'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cansancio (fatigue) */}
             <div style={{ margin:'10px 20px 0', padding:16, background:t.surface, borderRadius:18, border:'1px solid '+t.divider }}>
               <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:12 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={t.fgFaint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                 </svg>
-                <MonoLabel t={t}>estado físico</MonoLabel>
+                <MonoLabel t={t}>cansancio / energía</MonoLabel>
               </div>
               <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                 {PHYS_STATES.map(s => (
@@ -786,15 +835,25 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
               </div>
             </div>
 
-            {/* Body areas */}
+            {/* Dolor por zona (pain with intensity) */}
             <div style={{ margin:'10px 20px 0', padding:16, background:t.surface, borderRadius:18, border:'1px solid '+t.divider }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-                <MonoLabel t={t}>¿qué molesta hoy?</MonoLabel>
-                {bodyAreas.length > 0 && (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+                <MonoLabel t={t}>dolor por zona</MonoLabel>
+                {Object.keys(bodyAreas).length > 0 && (
                   <span style={{ fontFamily:t.fonts.mono, fontSize:9, fontWeight:700, color:'#DC2626', letterSpacing:'0.1em' }}>
-                    {bodyAreas.length} ÁREA{bodyAreas.length>1?'S':''}
+                    {Object.keys(bodyAreas).length} ZONA{Object.keys(bodyAreas).length>1?'S':''}
                   </span>
                 )}
+              </div>
+              {/* intensity legend */}
+              <div style={{ display:'flex', gap:10, marginBottom:12 }}>
+                {PAIN_LEVELS.slice(1).map(p => (
+                  <div key={p.v} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:p.color }}/>
+                    <span style={{ fontFamily:t.fonts.mono, fontSize:8, color:t.fgFaint }}>{p.label}</span>
+                  </div>
+                ))}
+                <span style={{ fontFamily:t.fonts.mono, fontSize:8, color:t.fgFaint, marginLeft:'auto' }}>toca para subir intensidad</span>
               </div>
               {BODY_AREA_GROUPS.map(({ group, areas }) => (
                 <div key={group} style={{ marginBottom:10 }}>
@@ -803,20 +862,23 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                   </div>
                   <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
                     {areas.map(area => {
-                      const active = bodyAreas.includes(area);
+                      const level = bodyAreas[area] || 0;
+                      const lvl = PAIN_LEVELS.find(p => p.v === level);
+                      const col = lvl?.color;
                       const freq = areaFrequency[area] || 0;
                       return (
-                        <button key={area} onClick={() => toggleBodyArea(area)} style={{
+                        <button key={area} onClick={() => cycleBodyArea(area)} style={{
                           padding:'5px 9px', borderRadius:8,
-                          border:`1px solid ${active ? '#DC2626' : t.border}`,
-                          background: active ? '#DC262618' : t.s2,
-                          color: active ? '#DC2626' : t.fgMuted,
-                          cursor:'pointer', fontFamily:t.fonts.body, fontSize:11, fontWeight: active ? 600 : 400,
-                          display:'flex', alignItems:'center', gap:3,
+                          border:`1px solid ${level > 0 ? col : t.border}`,
+                          background: level > 0 ? col + '22' : t.s2,
+                          color: level > 0 ? col : t.fgMuted,
+                          cursor:'pointer', fontFamily:t.fonts.body, fontSize:11, fontWeight: level > 0 ? 600 : 400,
+                          display:'flex', alignItems:'center', gap:4,
                         }}>
+                          {level > 0 && <span style={{ width:6, height:6, borderRadius:'50%', background:col, display:'inline-block' }}/>}
                           {area}
                           {freq > 1 && (
-                            <span style={{ fontFamily:t.fonts.mono, fontSize:8, color: active ? '#DC2626' : t.fgFaint, opacity:0.7 }}>
+                            <span style={{ fontFamily:t.fonts.mono, fontSize:8, color: level > 0 ? col : t.fgFaint, opacity:0.7 }}>
                               ×{freq}
                             </span>
                           )}

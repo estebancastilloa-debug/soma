@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../context/AuthContext.jsx';
 import { supabase } from '../lib/supabase.js';
 import { checkAvailability, requestPermissions, getTodayHealthData } from '../lib/healthConnect.js';
+import { computeReadiness, loadTodaySignals } from '../lib/readiness.js';
 
 // ─── 2×2 Widget ──────────────────────────────────────────────────────
 function Widget({ t, Icon, lab, main, sub, col, onClick }) {
@@ -73,6 +74,7 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
   const [habitsToday,  setHabitsToday]  = useState(0);
   const [healthData,   setHealthData]   = useState(null);
   const [hcStatus,     setHcStatus]     = useState('idle'); // idle|unavailable|needs-permission|connected
+  const [todayMood,    setTodayMood]    = useState(null);
 
   // Health Connect
   useEffect(() => {
@@ -109,18 +111,23 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
       supabase.from('prs').select('*', { count: 'exact', head: true }).eq('user_id', uid),
       supabase.from('workouts').select('date').eq('user_id', uid).gte('date', weekStart).lte('date', today),
       supabase.from('workouts').select('*').eq('user_id', uid).eq('date', today).maybeSingle(),
-      supabase.from('daily_log').select('habit_ids').eq('user_id', uid).eq('date', today).maybeSingle(),
+      supabase.from('daily_log').select('habit_ids, mood').eq('user_id', uid).eq('date', today).maybeSingle(),
     ]).then(([w, p, ww, tw, dl]) => {
       setWorkoutCount(w.count ?? 0);
       setPrCount(p.count ?? 0);
       setWeekStreak((ww.data || []).length);
       setTodayWod(tw.data || null);
       setHabitsToday((dl.data?.habit_ids || []).length);
+      setTodayMood(dl.data?.mood ?? null);
     });
   }, [session?.user?.id]);
 
   const displayName = profile?.name || 'Atleta';
   const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+  // Readiness from phone + self-report
+  const { fatigueId, painMap } = loadTodaySignals();
+  const readiness = computeReadiness({ healthData, fatigueId, mentalMood: todayMood, painMap });
 
   const now = new Date();
   const dateLabel = now.toLocaleDateString('es-ES', {
@@ -166,49 +173,49 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
         </div>
 
         {/* ── Recovery hero card ── */}
-        <div style={{ margin: '18px 20px 0', background: t.accent, color: t.onAccent,
+        <div style={{ margin: '18px 20px 0', background: readiness ? readiness.color : t.accent, color: '#0A0908',
           borderRadius: 20, padding: '16px 18px', position: 'relative', overflow: 'hidden' }}>
 
           {/* F5 watermark inside card */}
           <div style={{ position: 'absolute', right: -14, bottom: -14, width: 110, height: 110,
             opacity: 0.18, pointerEvents: 'none' }}>
             <svg viewBox="0 0 80 80" width="100%" height="100%">
-              <F5 color={t.onAccent} stroke={7}/>
+              <F5 color="#0A0908" stroke={7}/>
             </svg>
           </div>
 
           {/* Header row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-            <IconRecovery size={16} stroke={2} color={t.onAccent}/>
-            <MonoLabel t={t} color={t.onAccent + 'CC'}>recovery</MonoLabel>
+            <IconRecovery size={16} stroke={2} color="#0A0908"/>
+            <MonoLabel t={t} color="#0A0908CC">{readiness ? 'readiness' : 'recovery'}</MonoLabel>
           </div>
 
           {/* Score row */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 4 }}>
             <span style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 60,
               letterSpacing: '-0.06em', lineHeight: 1 }}>
-              {healthData?.rhr ?? '—'}
+              {readiness ? readiness.score : '—'}
             </span>
-            {healthData?.rhr && (
+            {readiness && (
               <span style={{ fontFamily: t.fonts.mono, fontWeight: 700, fontSize: 16,
-                opacity: 0.55, marginBottom: 10 }}>bpm en reposo</span>
+                opacity: 0.55, marginBottom: 10 }}>/100 · {readiness.label}</span>
             )}
           </div>
 
           {/* Health chips row */}
           {healthData ? (
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+              {healthData.rhr && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>RHR {healthData.rhr}</div>}
               {healthData.sleepHours && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>Sueño {healthData.sleepHours}h</div>}
               {healthData.steps  != null && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>{healthData.steps.toLocaleString()} pasos</div>}
               {healthData.calories != null && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>{healthData.calories} kcal</div>}
-              {healthData.weight && <div style={{ fontFamily: t.fonts.mono, fontSize: 10, opacity: 0.75 }}>{healthData.weight} kg</div>}
             </div>
           ) : (
             <div style={{ marginTop: 8 }}>
               {hcStatus === 'needs-permission' && (
                 <button onClick={handleConnectHealth} style={{
                   padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                  background: 'rgba(255,255,255,0.2)', color: t.onAccent,
+                  background: 'rgba(0,0,0,0.15)', color: '#0A0908',
                   fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em',
                 }}>
                   CONECTAR HEALTH CONNECT →

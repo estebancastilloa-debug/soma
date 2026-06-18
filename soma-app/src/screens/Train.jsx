@@ -33,10 +33,21 @@ function todayIso() {
 const WOD_TYPES = [
   { value: 'strength', label: 'Fuerza' },
   { value: 'amrap',    label: 'AMRAP' },
+  { value: 'amreps',   label: 'AMReps' },
   { value: 'emom',     label: 'EMOM' },
   { value: 'fortime',  label: 'For Time' },
+  { value: 'notime',   label: 'Not for Time' },
+  { value: 'deathby',  label: 'Death By' },
   { value: 'tabata',   label: 'Tabata' },
   { value: 'custom',   label: 'Otro' },
+];
+
+// Common rep schemes for "For Time" workouts
+const REP_SCHEMES = [
+  { value: '21-15-9',          label: '21-15-9' },
+  { value: '50-40-30-20-10',   label: '50-40-30-20-10' },
+  { value: '10-9-8-7-6-5-4-3-2-1', label: '10→1' },
+  { value: 'custom',           label: 'Otro' },
 ];
 
 const SCORE_UNITS = [
@@ -45,6 +56,19 @@ const SCORE_UNITS = [
   { value: 'load',   label: 'kg' },
   { value: 'rounds', label: 'rondas' },
 ];
+
+// Default score unit per WOD type
+const TYPE_DEFAULT_UNIT = {
+  strength: 'load',
+  amrap:    'rounds',
+  amreps:   'reps',
+  emom:     'rounds',
+  fortime:  'time',
+  notime:   'reps',
+  deathby:  'rounds',
+  tabata:   'reps',
+  custom:   'time',
+};
 
 function formatScore(value, unit) {
   if (value == null) return '';
@@ -271,11 +295,20 @@ function LogForm({ t, onSaved }) {
   const { session } = useAuth();
   const [name, setName]       = useState('');
   const [wodType, setWodType] = useState('');
+  const [scheme, setScheme]   = useState('');
+  const [customScheme, setCustomScheme] = useState('');
   const [score, setScore]     = useState('');
   const [unit, setUnit]       = useState('time');
   const [rpe, setRpe]         = useState('');
   const [notes, setNotes]     = useState('');
   const [saving, setSaving]   = useState(false);
+
+  function pickType(value) {
+    const next = wodType === value ? '' : value;
+    setWodType(next);
+    if (next && TYPE_DEFAULT_UNIT[next]) setUnit(TYPE_DEFAULT_UNIT[next]);
+    if (next !== 'fortime') { setScheme(''); setCustomScheme(''); }
+  }
 
   const inputStyle = {
     width: '100%', background: t.bg, border: `1px solid ${t.divider}`,
@@ -287,18 +320,22 @@ function LogForm({ t, onSaved }) {
   async function handleSave() {
     if (!session?.user) return;
     setSaving(true);
+    const schemeText = scheme === 'custom' ? customScheme.trim() : scheme;
+    const notesWithScheme = [schemeText ? `Esquema: ${schemeText}` : '', notes].filter(Boolean).join('\n');
+    const noScore = wodType === 'notime';
     await supabase.from('workouts').insert({
       user_id: session.user.id,
       date: todayIso(),
       name: name || null,
       wod_type: wodType || null,
-      score_value: parseFloat(score) || null,
+      score_value: noScore ? null : (parseFloat(score) || null),
       score_unit: unit,
       rpe: parseInt(rpe) || null,
-      notes: notes || null,
+      notes: notesWithScheme || null,
     });
     setSaving(false);
-    setName(''); setWodType(''); setScore(''); setRpe(''); setNotes('');
+    setName(''); setWodType(''); setScheme(''); setCustomScheme('');
+    setScore(''); setRpe(''); setNotes('');
     onSaved?.();
   }
 
@@ -330,7 +367,7 @@ function LogForm({ t, onSaved }) {
           {WOD_TYPES.map(w => (
             <button
               key={w.value}
-              onClick={() => setWodType(wodType === w.value ? '' : w.value)}
+              onClick={() => pickType(w.value)}
               style={{
                 ...pillBase,
                 background: wodType === w.value ? t.pillar.train : t.bg,
@@ -344,7 +381,39 @@ function LogForm({ t, onSaved }) {
         </div>
       </div>
 
-      {/* Score + unit */}
+      {/* For Time → rep scheme presets */}
+      {wodType === 'fortime' && (
+        <div>
+          <MonoLabel t={t} style={{ marginBottom: 6 }}>esquema de reps</MonoLabel>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+            {REP_SCHEMES.map(s => (
+              <button
+                key={s.value}
+                onClick={() => setScheme(scheme === s.value ? '' : s.value)}
+                style={{
+                  ...pillBase,
+                  background: scheme === s.value ? t.pillar.train : t.bg,
+                  color: scheme === s.value ? '#0A0908' : t.fg,
+                  border: `1px solid ${scheme === s.value ? t.pillar.train : t.divider}`,
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          {scheme === 'custom' && (
+            <input
+              placeholder="ej. 30-20-10"
+              value={customScheme}
+              onChange={e => setCustomScheme(e.target.value)}
+              style={{ ...inputStyle, marginTop: 8 }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Score + unit — hidden for Not for Time */}
+      {wodType !== 'notime' && (
       <div style={{ display: 'flex', gap: 8 }}>
         <input
           placeholder="Score"
@@ -371,6 +440,7 @@ function LogForm({ t, onSaved }) {
           ))}
         </div>
       </div>
+      )}
 
       {/* RPE pills */}
       <div>
