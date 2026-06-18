@@ -7,7 +7,7 @@ import { useBackClose } from '../lib/backstack.js';
 import { F5, WordmarkWithMark } from '../marks.jsx';
 import {
   IconRecovery, IconDumbbellSmall, IconProtein,
-  IconBalance, IconSleep, IconStreak,
+  IconBalance, IconCheck, IconStreak,
 } from '../icons.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { supabase } from '../lib/supabase.js';
@@ -142,7 +142,7 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
     { Icon: IconDumbbellSmall, lab: 'ENTRENO HOY', main: todayWod?.name || 'Sin WOD',   sub: todayWod?.wod_type || 'Toca para registrar', col: t.pillar.train,   go: 'train' },
     { Icon: IconProtein,       lab: 'NUTRICIÓN',   main: '—',                            sub: 'Registra comidas',                           col: t.pillar.eat,     go: 'eat'   },
     { Icon: IconBalance,       lab: 'NIVEL',       main: 'L01',                          sub: 'The Spark',                                  col: t.pillar.records, go: 'level' },
-    { Icon: IconSleep,         lab: 'HÁBITOS',     main: habitsToday > 0 ? `${habitsToday}` : '—', sub: habitsToday > 0 ? `completados hoy` : 'Ve a Bitácora', col: t.fg, go: 'journal' },
+    { Icon: IconCheck,         lab: 'HÁBITOS',     main: habitsToday > 0 ? `${habitsToday}` : '—', sub: habitsToday > 0 ? `completados hoy` : 'Ve a Bitácora', col: t.fg, go: 'journal' },
   ];
 
   return (

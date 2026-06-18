@@ -211,13 +211,9 @@ export function AddSheet({ t, open, onClose, onNav }) {
       }}>
         <div style={{ width:40, height:4, borderRadius:2, background:t.fgFaint,
           opacity:0.5, margin:'0 auto 16px' }}/>
-        <div style={{ padding:'0 20px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ padding:'0 20px' }}>
           <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:22,
             letterSpacing:'-0.03em', color:t.fg }}>Quick log</div>
-          <button onClick={onClose} style={{ border:'none', background:t.s2, color:t.fg,
-            width:30, height:30, borderRadius:'50%', cursor:'pointer',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            fontFamily:'inherit', fontSize:16 }}>×</button>
         </div>
 
         {/* Quick grid */}

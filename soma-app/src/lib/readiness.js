@@ -61,6 +61,10 @@ export function computeReadiness({ healthData, fatigueId, mentalMood, painMap, r
   }
 
   if (!comps.length) return null;
+  // Readiness needs a real physical signal — mood/pain alone isn't enough,
+  // otherwise a default mood shows a misleading number.
+  const hasPhysical = comps.some(c => ['Sueño', 'Cansancio', 'FC reposo'].includes(c.key));
+  if (!hasPhysical) return null;
 
   const totalW = comps.reduce((s, c) => s + c.weight, 0);
   const score = Math.max(0, Math.min(100, Math.round(comps.reduce((s, c) => s + c.score * c.weight, 0) / totalW)));

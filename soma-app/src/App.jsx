@@ -53,13 +53,14 @@ function MovementModalWrap({ t, title, onClose, children }) {
   return (
     <div style={{ position:'absolute', inset:0, zIndex:80,
       background:t.bg, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-      <div style={{ padding:'52px 20px 12px', display:'flex', alignItems:'center',
-        justifyContent:'space-between' }}>
+      <div style={{ padding:'52px 20px 12px' }}>
+        <button onClick={onClose} style={{ border:'none', background:'transparent', cursor:'pointer',
+          padding:'0 0 12px', fontFamily:t.fonts.body, fontSize:14, fontWeight:600, color:t.fgMuted,
+          display:'flex', alignItems:'center', gap:6 }}>
+          <span style={{ fontSize:18 }}>←</span> Atrás
+        </button>
         <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:20,
           letterSpacing:'-0.03em', color:t.fg }}>{title}</div>
-        <button onClick={onClose} style={{ width:34, height:34, borderRadius:'50%',
-          border:'none', background:t.surface, color:t.fg, cursor:'pointer',
-          fontSize:18, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
       </div>
       <div style={{ flex:1, overflow:'auto', padding:'0 20px 40px' }}>{children}</div>
     </div>
@@ -105,10 +106,11 @@ function SearchMovementsModal({ t, open, onClose, onPick }) {
           style={{ flex:1, padding:'10px 14px', borderRadius:12,
             border:`1px solid ${t.divider}`, background:t.surface, color:t.fg,
             fontFamily:t.fonts.body, fontSize:14, outline:'none' }}/>
-        <button onClick={onClose} style={{ border:'none', background:t.surface,
-          color:t.fg, width:36, height:36, borderRadius:'50%', cursor:'pointer',
-          fontSize:18, display:'flex', alignItems:'center', justifyContent:'center',
-          flexShrink:0 }}>×</button>
+        <button onClick={onClose} style={{ border:`1px solid ${t.divider}`, background:'transparent',
+          color:t.fgMuted, padding:'0 14px', height:38, borderRadius:12, cursor:'pointer',
+          fontFamily:t.fonts.body, fontSize:13, fontWeight:600,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          flexShrink:0 }}>Atrás</button>
       </div>
       <div style={{ overflow:'auto', padding:'0 20px 100px' }}>
         {hits.map(m => (

@@ -1474,9 +1474,15 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                 }}>
                   Verificar con huella
                 </button>
+                <button onClick={() => setPsychUnlocked(true)} style={{
+                  padding:'12px', borderRadius:14, border:'1px solid '+t.divider, background:'transparent',
+                  color:t.fgMuted, cursor:'pointer', fontFamily:t.fonts.body, fontWeight:600, fontSize:13,
+                }}>
+                  Entrar sin huella
+                </button>
                 <button onClick={disableBiometric} style={{
-                  padding:'10px', borderRadius:14, border:'1px solid '+t.divider, background:'transparent',
-                  color:t.fgFaint, cursor:'pointer', fontFamily:t.fonts.body, fontWeight:600, fontSize:12,
+                  padding:'8px', borderRadius:14, border:'none', background:'transparent',
+                  color:t.fgFaint, cursor:'pointer', fontFamily:t.fonts.body, fontWeight:600, fontSize:11.5,
                 }}>
                   Quitar protección
                 </button>
