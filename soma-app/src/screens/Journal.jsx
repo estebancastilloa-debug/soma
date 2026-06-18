@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getTodayHealthData } from '../lib/healthConnect.js';
 import { computeReadiness } from '../lib/readiness.js';
+import { biometricAvailable, biometricAuth } from '../lib/biometric.js';
 import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab, DragHandle, useSwipeDown } from '../chrome.jsx';
 import { useBackClose } from '../lib/backstack.js';
 import { IconHeart, IconRecovery, IconSleep, IconWater, MOOD_ICONS, MOOD_LABELS } from '../icons.jsx';
@@ -457,10 +458,13 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   const [painSheetArea, setPainSheetArea] = useState(null); // area being edited
   const painSwipe = useSwipeDown(() => setPainSheetArea(null));
 
-  // Psychology biometric lock
+  // Psychology biometric lock (native fingerprint/face)
   const [psychUnlocked, setPsychUnlocked] = useState(false);
-  const [bioEnabled, setBioEnabled] = useState(() => !!localStorage.getItem('soma_webauthn_id'));
+  const [bioEnabled, setBioEnabled] = useState(() => localStorage.getItem('soma_psych_bio') === '1');
+  const [bioAvailable, setBioAvailable] = useState(false);
   const [bioRegistering, setBioRegistering] = useState(false);
+
+  useEffect(() => { biometricAvailable().then(setBioAvailable); }, []);
   const [healthData, setHealthData] = useState(null);
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [obsidianCopied, setObsidianCopied] = useState(false);
@@ -741,53 +745,28 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   const readiness = computeReadiness({ healthData, fatigueId: physMood, mentalMood: mood, painMap: painMapWeighted });
 
   async function registerBiometric() {
-    if (!window.PublicKeyCredential) {
-      alert('Tu dispositivo no soporta biometría web. Intenta en Safari (iOS) o Chrome (Android).');
+    if (!bioAvailable) {
+      alert('Tu teléfono no tiene huella o Face configurados. Actívalos en los ajustes del sistema y vuelve aquí.');
       return;
     }
     setBioRegistering(true);
-    try {
-      const cred = await navigator.credentials.create({
-        publicKey: {
-          challenge: crypto.getRandomValues(new Uint8Array(32)),
-          rp: { name: 'SOMA', id: window.location.hostname },
-          user: {
-            id: new TextEncoder().encode(user?.id || 'soma-user'),
-            name: user?.email || 'soma@user',
-            displayName: 'SOMA User',
-          },
-          pubKeyCredParams: [
-            { type: 'public-key', alg: -7 },
-            { type: 'public-key', alg: -257 },
-          ],
-          authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
-          timeout: 60000,
-        }
-      });
-      if (cred) {
-        localStorage.setItem('soma_webauthn_id', u8ToB64(cred.rawId));
-        setBioEnabled(true);
-        setPsychUnlocked(true);
-      }
-    } catch { /* user cancelled */ }
-    finally { setBioRegistering(false); }
+    const ok = await biometricAuth('Activa el bloqueo de tu zona privada');
+    setBioRegistering(false);
+    if (ok) {
+      localStorage.setItem('soma_psych_bio', '1');
+      setBioEnabled(true);
+      setPsychUnlocked(true);
+    }
   }
 
   async function authenticateBiometric() {
-    const storedId = localStorage.getItem('soma_webauthn_id');
-    if (!storedId) { setPsychUnlocked(true); return; }
-    try {
-      const result = await navigator.credentials.get({
-        publicKey: {
-          challenge: crypto.getRandomValues(new Uint8Array(32)),
-          rpId: window.location.hostname,
-          allowCredentials: [{ type: 'public-key', id: b64ToU8(storedId) }],
-          userVerification: 'required',
-          timeout: 60000,
-        }
-      });
-      if (result) setPsychUnlocked(true);
-    } catch { /* user cancelled */ }
+    const ok = await biometricAuth('Accede a tu Inner Map');
+    if (ok) setPsychUnlocked(true);
+  }
+
+  function disableBiometric() {
+    localStorage.removeItem('soma_psych_bio');
+    setBioEnabled(false);
   }
 
   const todayPrompt   = PROMPTS[new Date().getDay() % PROMPTS.length];
@@ -1142,20 +1121,30 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                 Zona privada
               </div>
               <div style={{ fontFamily:t.fonts.body, fontSize:13.5, color:t.fgMuted, lineHeight:1.6, maxWidth:280 }}>
-                {bioEnabled
-                  ? 'Verifica tu identidad con huella digital para acceder a tu Inner Map.'
-                  : 'Activa la autenticación biométrica para proteger tu perfil psicológico.'}
+                {!bioAvailable
+                  ? 'Tu teléfono no tiene huella o Face configurados. Esta función funciona solo en la app instalada con biometría activada.'
+                  : bioEnabled
+                  ? 'Verifica tu identidad con huella o Face para acceder a tu Inner Map.'
+                  : 'Protege tu perfil psicológico con la huella o Face de tu teléfono.'}
               </div>
             </div>
-            {bioEnabled ? (
-              <button onClick={authenticateBiometric} style={{
-                padding:'14px 32px', borderRadius:14, border:'none',
-                background:t.accent, color:'#0A0908', cursor:'pointer',
-                fontFamily:t.fonts.body, fontWeight:700, fontSize:15,
-              }}>
-                Verificar con huella
-              </button>
-            ) : (
+            {bioAvailable && bioEnabled ? (
+              <div style={{ display:'flex', flexDirection:'column', gap:10, width:'100%', maxWidth:300 }}>
+                <button onClick={authenticateBiometric} style={{
+                  padding:'14px 32px', borderRadius:14, border:'none',
+                  background:t.accent, color:'#0A0908', cursor:'pointer',
+                  fontFamily:t.fonts.body, fontWeight:700, fontSize:15,
+                }}>
+                  Verificar con huella
+                </button>
+                <button onClick={disableBiometric} style={{
+                  padding:'10px', borderRadius:14, border:'1px solid '+t.divider, background:'transparent',
+                  color:t.fgFaint, cursor:'pointer', fontFamily:t.fonts.body, fontWeight:600, fontSize:12,
+                }}>
+                  Quitar protección
+                </button>
+              </div>
+            ) : bioAvailable ? (
               <div style={{ display:'flex', flexDirection:'column', gap:10, width:'100%', maxWidth:300 }}>
                 <button onClick={registerBiometric} disabled={bioRegistering} style={{
                   padding:'14px', borderRadius:14, border:'none',
@@ -1174,6 +1163,14 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                   Continuar sin protección
                 </button>
               </div>
+            ) : (
+              <button onClick={() => setPsychUnlocked(true)} style={{
+                padding:'14px 32px', borderRadius:14, border:'none',
+                background:t.accent, color:'#0A0908', cursor:'pointer',
+                fontFamily:t.fonts.body, fontWeight:700, fontSize:15,
+              }}>
+                Continuar
+              </button>
             )}
           </div>
         )}

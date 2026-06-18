@@ -9,7 +9,7 @@ import { F5, WordmarkWithMark } from '../marks.jsx';
 import { checkAvailability, requestPermissions, requestPermissionsVerbose } from '../lib/healthConnect.js';
 import { useTheme, INTENSITIES, ACCENTS } from '../theme.jsx';
 
-const APP_BUILD = 'b11';
+const APP_BUILD = 'b12';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -837,10 +837,11 @@ function SkillsCard({ t }) {
   });
   const [prs, setPrs] = useState(() => loadSkillPrs());
   const [activeGroup, setActiveGroup] = useState(SKILL_GROUPS[0].group);
-  const [prSkill, setPrSkill] = useState(null); // skill name whose PR sheet is open
-  const [prInputs, setPrInputs] = useState({}); // temp input values in the PR sheet
+  const [prSkill, setPrSkill] = useState(null); // skill name whose edit sheet is open
+  const [prInputs, setPrInputs] = useState({}); // temp input values in the sheet
   const [prUnit, setPrUnit] = useState('kg');   // weight unit in the sheet
-  const [editing, setEditing] = useState(false);
+  const [prName, setPrName] = useState('');      // editable movement name
+  const [prMetric, setPrMetric] = useState('weight'); // editable metric type
   const [adding, setAdding]   = useState(false);
   const [newSkill, setNewSkill] = useState('');
   // user-edited movement lists per group (overrides defaults)
@@ -848,7 +849,11 @@ function SkillsCard({ t }) {
     try { return JSON.parse(localStorage.getItem('soma_skill_lists') || '{}'); }
     catch { return {}; }
   });
-  const renameOrig = useRef(null);
+  // per-movement metric override
+  const [skillMetrics, setSkillMetrics] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('soma_skill_metrics') || '{}'); }
+    catch { return {}; }
+  });
   useBackClose(!!prSkill, () => setPrSkill(null));
   const prSwipe = useSwipeDown(() => setPrSkill(null));
 
@@ -859,7 +864,9 @@ function SkillsCard({ t }) {
   function persistLists(next) { setSkillLists(next); localStorage.setItem('soma_skill_lists', JSON.stringify(next)); }
   function withGroup(next, group) { if (!next[group]) next[group] = [...defaultList(group)]; return next; }
 
-  // migrate level + PR data when a movement is renamed
+  function metricFor(skill) { return skillMetrics[skill] || GROUP_METRIC[activeGroup] || 'weight'; }
+
+  // migrate level + PR + metric data when a movement is renamed
   function migrateKey(oldName, newName) {
     if (!oldName || !newName || oldName === newName) return;
     if (skills[oldName] != null) {
@@ -870,24 +877,24 @@ function SkillsCard({ t }) {
       const n = { ...prs }; n[newName] = n[oldName]; delete n[oldName];
       setPrs(n); saveSkillPrs(n);
     }
-  }
-
-  function renameAt(index, value) {
-    const next = withGroup({ ...skillLists }, activeGroup);
-    next[activeGroup] = next[activeGroup].slice();
-    next[activeGroup][index] = value;
-    persistLists(next);
-  }
-
-  function removeAt(index) {
-    const next = withGroup({ ...skillLists }, activeGroup);
-    const removed = next[activeGroup][index];
-    next[activeGroup] = next[activeGroup].filter((_, i) => i !== index);
-    persistLists(next);
-    if (removed) {
-      if (skills[removed] != null) { const n = { ...skills }; delete n[removed]; setSkills(n); localStorage.setItem(LS_MOVEMENTS, JSON.stringify(n)); }
-      if (prs[removed]) { const n = { ...prs }; delete n[removed]; setPrs(n); saveSkillPrs(n); }
+    if (skillMetrics[oldName]) {
+      const n = { ...skillMetrics }; n[newName] = n[oldName]; delete n[oldName];
+      setSkillMetrics(n); localStorage.setItem('soma_skill_metrics', JSON.stringify(n));
     }
+    // rename inside the group list
+    const next = withGroup({ ...skillLists }, activeGroup);
+    const idx = next[activeGroup].indexOf(oldName);
+    if (idx >= 0) { next[activeGroup] = next[activeGroup].slice(); next[activeGroup][idx] = newName; persistLists(next); }
+  }
+
+  function removeSkill(name) {
+    const next = withGroup({ ...skillLists }, activeGroup);
+    next[activeGroup] = next[activeGroup].filter(s => s !== name);
+    persistLists(next);
+    if (skills[name] != null) { const n = { ...skills }; delete n[name]; setSkills(n); localStorage.setItem(LS_MOVEMENTS, JSON.stringify(n)); }
+    if (prs[name]) { const n = { ...prs }; delete n[name]; setPrs(n); saveSkillPrs(n); }
+    if (skillMetrics[name]) { const n = { ...skillMetrics }; delete n[name]; setSkillMetrics(n); localStorage.setItem('soma_skill_metrics', JSON.stringify(n)); }
+    setPrSkill(null);
   }
 
   function addSkill() {
@@ -908,25 +915,32 @@ function SkillsCard({ t }) {
 
   function openPrSheet(skill) {
     const existing = prs[skill] || {};
-    const metric = GROUP_METRIC[activeGroup] || 'weight';
+    setPrName(skill);
+    setPrMetric(metricFor(skill));
     const inputs = {};
-    if (metric === 'weight') {
-      PR_REPS.forEach(r => { inputs[r] = existing[r]?.value ?? ''; });
-      setPrUnit(existing.unit || 'kg');
-    } else if (metric === 'reps') {
-      inputs.reps = existing.reps?.value ?? '';
-    } else if (metric === 'time') {
-      inputs.time = existing.time ? formatTime(existing.time.value) : '';
-    }
+    PR_REPS.forEach(r => { inputs[r] = existing[r]?.value ?? ''; });
+    inputs.reps = existing.reps?.value ?? '';
+    inputs.time = existing.time ? formatTime(existing.time.value) : '';
+    setPrUnit(existing.unit || 'kg');
     setPrInputs(inputs);
     setPrSkill(skill);
   }
 
   function savePrs() {
-    const skill = prSkill;
-    const metric = GROUP_METRIC[activeGroup] || 'weight';
+    const original = prSkill;
+    const metric = prMetric;
+    // handle rename first
+    const newName = prName.trim();
+    if (newName && newName !== original) migrateKey(original, newName);
+    const skill = newName || original;
+
+    // persist metric choice
+    const nm = { ...skillMetrics, [skill]: metric };
+    setSkillMetrics(nm);
+    localStorage.setItem('soma_skill_metrics', JSON.stringify(nm));
+
     const existing = prs[skill] || {};
-    let updated = { ...existing };
+    let updated = { ...existing, metric };
 
     if (metric === 'weight') {
       updated.unit = prUnit;
@@ -934,23 +948,20 @@ function SkillsCard({ t }) {
         const val = parseFloat(prInputs[r]);
         if (!isNaN(val) && val > 0) {
           const prev = existing[r];
-          const isNew = !prev || val > prev.value;
-          updated[r] = { value: val, date: isNew ? today() : prev.date };
+          updated[r] = { value: val, date: (!prev || val > prev.value) ? today() : prev.date };
         }
       });
     } else if (metric === 'reps') {
       const val = parseInt(prInputs.reps, 10);
       if (!isNaN(val) && val > 0) {
         const prev = existing.reps;
-        const isNew = !prev || val > prev.value;
-        updated.reps = { value: val, date: isNew ? today() : prev.date };
+        updated.reps = { value: val, date: (!prev || val > prev.value) ? today() : prev.date };
       }
     } else if (metric === 'time') {
       const val = parseTime(prInputs.time);
       if (val != null) {
         const prev = existing.time;
-        const isNew = !prev || val < prev.value; // lower time is better
-        updated.time = { value: val, date: isNew ? today() : prev.date };
+        updated.time = { value: val, date: (!prev || val < prev.value) ? today() : prev.date };
       }
     }
 
@@ -963,22 +974,13 @@ function SkillsCard({ t }) {
   const group = SKILL_GROUPS.find(g => g.group === activeGroup);
   const groupSkills = getList(activeGroup);
   const groupMetric = GROUP_METRIC[activeGroup] || 'weight';
-  const sheetMetric = prSkill ? groupMetric : null;
+  const sheetMetric = prMetric;
   const metricLabel = { weight: 'PESO', reps: 'REPS MÁX', time: 'MEJOR TIEMPO' }[sheetMetric] || '';
 
   return (
     <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>
-          Skills & Movimientos
-        </div>
-        <button onClick={() => setEditing(e => !e)} style={{
-          padding: '5px 12px', borderRadius: 10, border: `1px solid ${editing ? t.accent : t.divider}`,
-          background: editing ? t.accent + '18' : 'transparent', color: editing ? t.accent : t.fgMuted,
-          cursor: 'pointer', fontFamily: t.fonts.body, fontWeight: 600, fontSize: 12,
-        }}>
-          {editing ? 'Listo' : 'Editar'}
-        </button>
+      <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg, marginBottom: 12 }}>
+        Skills & Movimientos
       </div>
 
       {/* Category tabs */}
@@ -1019,31 +1021,12 @@ function SkillsCard({ t }) {
       </div>
 
       {/* Skills list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: editing ? 6 : 2 }}>
-        {groupSkills.map((skill, index) => {
-          if (editing) {
-            return (
-              <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input
-                  value={skill}
-                  onFocus={e => { renameOrig.current = e.target.value; }}
-                  onChange={e => renameAt(index, e.target.value)}
-                  onBlur={() => { migrateKey(renameOrig.current, getList(activeGroup)[index]); renameOrig.current = null; }}
-                  style={{ flex: 1, padding: '9px 11px', borderRadius: 10, border: `1px solid ${t.border}`,
-                    background: t.bg, color: t.fg, fontFamily: t.fonts.body, fontSize: 13, outline: 'none' }}
-                />
-                <button onClick={() => removeAt(index)} style={{
-                  width: 30, height: 30, borderRadius: 8, flexShrink: 0, border: `1px solid ${t.semantic.low}55`,
-                  background: 'transparent', color: t.semantic.low, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                }}>×</button>
-              </div>
-            );
-          }
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {groupSkills.map(skill => {
           const level = skills[skill] || 0;
           const lv = SKILL_LEVELS[level];
           const skillPrs = prs[skill] || null;
-          const summary = prSummary(skill, skillPrs, groupMetric);
+          const summary = prSummary(skill, skillPrs, metricFor(skill));
           const hasPr = !!summary;
           return (
             <div key={skill} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1073,14 +1056,14 @@ function SkillsCard({ t }) {
                 )}
               </button>
               <button onClick={() => openPrSheet(skill)} style={{
-                width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                padding: '0 10px', height: 28, borderRadius: 8, flexShrink: 0,
                 border: `1px solid ${hasPr ? group.col : t.border}`,
                 background: hasPr ? group.col + '20' : 'transparent',
-                color: hasPr ? group.col : t.fgFaint,
+                color: hasPr ? group.col : t.fgMuted,
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: t.fonts.mono, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
+                fontFamily: t.fonts.body, fontSize: 11, fontWeight: 600,
               }}>
-                PR
+                Editar
               </button>
             </div>
           );
@@ -1118,7 +1101,7 @@ function SkillsCard({ t }) {
       )}
 
       <div style={{ marginTop: 10, fontFamily: t.fonts.body, fontSize: 11, color: t.fgFaint }}>
-        {editing ? 'Renombra los movimientos o quítalos con × · tus PRs y niveles se conservan' : 'Toca el nombre para cambiar nivel · PR para registrar récords'}
+        Toca el nombre para cambiar nivel · "Editar" para cambiar peso, métrica, reps o tiempo
       </div>
 
       {/* PR Sheet overlay */}
@@ -1131,9 +1114,28 @@ function SkillsCard({ t }) {
             width: '100%', background: t.bg, borderRadius: '20px 20px 0 0', padding: '12px 20px 40px',
           }}>
             <DragHandle t={t}/>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16, color: t.fg }}>{prSkill}</div>
-              <div style={{ fontFamily: t.fonts.mono, fontSize: 9, color: t.fgFaint, letterSpacing: '0.14em', marginTop: 2 }}>ALL-TIME PR · {metricLabel}</div>
+
+            {/* Editable name */}
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: t.fgFaint, textTransform: 'uppercase', marginBottom: 6 }}>Movimiento</div>
+            <input
+              value={prName}
+              onChange={e => setPrName(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', borderRadius: 12, border: `1px solid ${t.border}`,
+                background: t.surface, color: t.fg, fontFamily: t.fonts.body, fontWeight: 700, fontSize: 15, outline: 'none', marginBottom: 16 }}
+            />
+
+            {/* Metric type selector */}
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: t.fgFaint, textTransform: 'uppercase', marginBottom: 8 }}>Métrica</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
+              {[{ id: 'weight', label: 'Peso' }, { id: 'reps', label: 'Reps' }, { id: 'time', label: 'Tiempo' }].map(m => (
+                <button key={m.id} onClick={() => setPrMetric(m.id)} style={{
+                  flex: 1, padding: '10px', borderRadius: 10, cursor: 'pointer',
+                  border: `1px solid ${prMetric === m.id ? t.accent : t.border}`,
+                  background: prMetric === m.id ? t.accent + '18' : t.s2,
+                  color: prMetric === m.id ? t.fg : t.fgMuted,
+                  fontFamily: t.fonts.body, fontWeight: prMetric === m.id ? 700 : 500, fontSize: 13,
+                }}>{m.label}</button>
+              ))}
             </div>
 
             {/* WEIGHT: unit toggle + rep-max table */}
@@ -1244,7 +1246,14 @@ function SkillsCard({ t }) {
               background: t.accent, color: '#0A0908', cursor: 'pointer',
               fontFamily: t.fonts.body, fontWeight: 700, fontSize: 15,
             }}>
-              Guardar PR
+              Guardar
+            </button>
+            <button onClick={() => removeSkill(prSkill)} style={{
+              width: '100%', marginTop: 10, padding: '12px', borderRadius: 14,
+              border: `1px solid ${t.semantic.low}44`, background: 'transparent', color: t.semantic.low,
+              cursor: 'pointer', fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13,
+            }}>
+              Eliminar movimiento
             </button>
           </div>
         </div>
