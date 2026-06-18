@@ -9,7 +9,7 @@ import { F5, WordmarkWithMark } from '../marks.jsx';
 import { checkAvailability, requestPermissions, requestPermissionsVerbose } from '../lib/healthConnect.js';
 import { useTheme, INTENSITIES, ACCENTS } from '../theme.jsx';
 
-const APP_BUILD = 'b10';
+const APP_BUILD = 'b11';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -814,9 +814,9 @@ function formatTime(seconds) {
 }
 
 // short summary chip for a skill row
-function prSummary(skill, skillPrs) {
+function prSummary(skill, skillPrs, metricOverride) {
   if (!skillPrs) return null;
-  const metric = metricForSkill(skill);
+  const metric = metricOverride || metricForSkill(skill);
   if (metric === 'weight') {
     const best = skillPrs['1'] || skillPrs[1];
     return best ? `${best.value}${skillPrs.unit || 'kg'}` : null;
@@ -841,32 +841,62 @@ function SkillsCard({ t }) {
   const [prInputs, setPrInputs] = useState({}); // temp input values in the PR sheet
   const [prUnit, setPrUnit] = useState('kg');   // weight unit in the sheet
   const [editing, setEditing] = useState(false);
+  const [adding, setAdding]   = useState(false);
   const [newSkill, setNewSkill] = useState('');
-  const [customSkills, setCustomSkills] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('soma_custom_skills') || '{}'); }
+  // user-edited movement lists per group (overrides defaults)
+  const [skillLists, setSkillLists] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('soma_skill_lists') || '{}'); }
     catch { return {}; }
   });
+  const renameOrig = useRef(null);
   useBackClose(!!prSkill, () => setPrSkill(null));
   const prSwipe = useSwipeDown(() => setPrSkill(null));
 
   const today = () => new Date().toISOString().slice(0, 10);
 
-  function persistCustom(next) {
-    setCustomSkills(next);
-    localStorage.setItem('soma_custom_skills', JSON.stringify(next));
+  function defaultList(group) { return SKILL_GROUPS.find(g => g.group === group)?.skills || []; }
+  function getList(group)     { return skillLists[group] || defaultList(group); }
+  function persistLists(next) { setSkillLists(next); localStorage.setItem('soma_skill_lists', JSON.stringify(next)); }
+  function withGroup(next, group) { if (!next[group]) next[group] = [...defaultList(group)]; return next; }
+
+  // migrate level + PR data when a movement is renamed
+  function migrateKey(oldName, newName) {
+    if (!oldName || !newName || oldName === newName) return;
+    if (skills[oldName] != null) {
+      const n = { ...skills }; n[newName] = n[oldName]; delete n[oldName];
+      setSkills(n); localStorage.setItem(LS_MOVEMENTS, JSON.stringify(n));
+    }
+    if (prs[oldName]) {
+      const n = { ...prs }; n[newName] = n[oldName]; delete n[oldName];
+      setPrs(n); saveSkillPrs(n);
+    }
   }
 
-  function addCustomSkill() {
+  function renameAt(index, value) {
+    const next = withGroup({ ...skillLists }, activeGroup);
+    next[activeGroup] = next[activeGroup].slice();
+    next[activeGroup][index] = value;
+    persistLists(next);
+  }
+
+  function removeAt(index) {
+    const next = withGroup({ ...skillLists }, activeGroup);
+    const removed = next[activeGroup][index];
+    next[activeGroup] = next[activeGroup].filter((_, i) => i !== index);
+    persistLists(next);
+    if (removed) {
+      if (skills[removed] != null) { const n = { ...skills }; delete n[removed]; setSkills(n); localStorage.setItem(LS_MOVEMENTS, JSON.stringify(n)); }
+      if (prs[removed]) { const n = { ...prs }; delete n[removed]; setPrs(n); saveSkillPrs(n); }
+    }
+  }
+
+  function addSkill() {
     const name = newSkill.trim();
     if (!name) return;
-    const list = customSkills[activeGroup] || [];
-    if (list.includes(name)) { setNewSkill(''); return; }
-    persistCustom({ ...customSkills, [activeGroup]: [...list, name] });
-    setNewSkill('');
-  }
-
-  function removeCustomSkill(group, name) {
-    persistCustom({ ...customSkills, [group]: (customSkills[group] || []).filter(s => s !== name) });
+    const next = withGroup({ ...skillLists }, activeGroup);
+    if (!next[activeGroup].includes(name)) next[activeGroup] = [...next[activeGroup], name];
+    persistLists(next);
+    setNewSkill(''); setAdding(false);
   }
 
   function cycleLevel(skill) {
@@ -878,7 +908,7 @@ function SkillsCard({ t }) {
 
   function openPrSheet(skill) {
     const existing = prs[skill] || {};
-    const metric = metricForSkill(skill);
+    const metric = GROUP_METRIC[activeGroup] || 'weight';
     const inputs = {};
     if (metric === 'weight') {
       PR_REPS.forEach(r => { inputs[r] = existing[r]?.value ?? ''; });
@@ -894,7 +924,7 @@ function SkillsCard({ t }) {
 
   function savePrs() {
     const skill = prSkill;
-    const metric = metricForSkill(skill);
+    const metric = GROUP_METRIC[activeGroup] || 'weight';
     const existing = prs[skill] || {};
     let updated = { ...existing };
 
@@ -931,8 +961,9 @@ function SkillsCard({ t }) {
   }
 
   const group = SKILL_GROUPS.find(g => g.group === activeGroup);
-  const groupSkills = [...(group?.skills || []), ...(customSkills[activeGroup] || [])];
-  const sheetMetric = prSkill ? metricForSkill(prSkill) : null;
+  const groupSkills = getList(activeGroup);
+  const groupMetric = GROUP_METRIC[activeGroup] || 'weight';
+  const sheetMetric = prSkill ? groupMetric : null;
   const metricLabel = { weight: 'PESO', reps: 'REPS MÁX', time: 'MEJOR TIEMPO' }[sheetMetric] || '';
 
   return (
@@ -988,14 +1019,32 @@ function SkillsCard({ t }) {
       </div>
 
       {/* Skills list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {groupSkills.map(skill => {
+      <div style={{ display: 'flex', flexDirection: 'column', gap: editing ? 6 : 2 }}>
+        {groupSkills.map((skill, index) => {
+          if (editing) {
+            return (
+              <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  value={skill}
+                  onFocus={e => { renameOrig.current = e.target.value; }}
+                  onChange={e => renameAt(index, e.target.value)}
+                  onBlur={() => { migrateKey(renameOrig.current, getList(activeGroup)[index]); renameOrig.current = null; }}
+                  style={{ flex: 1, padding: '9px 11px', borderRadius: 10, border: `1px solid ${t.border}`,
+                    background: t.bg, color: t.fg, fontFamily: t.fonts.body, fontSize: 13, outline: 'none' }}
+                />
+                <button onClick={() => removeAt(index)} style={{
+                  width: 30, height: 30, borderRadius: 8, flexShrink: 0, border: `1px solid ${t.semantic.low}55`,
+                  background: 'transparent', color: t.semantic.low, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+                }}>×</button>
+              </div>
+            );
+          }
           const level = skills[skill] || 0;
           const lv = SKILL_LEVELS[level];
           const skillPrs = prs[skill] || null;
-          const summary = prSummary(skill, skillPrs);
+          const summary = prSummary(skill, skillPrs, groupMetric);
           const hasPr = !!summary;
-          const isCustom = (customSkills[activeGroup] || []).includes(skill);
           return (
             <div key={skill} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button onClick={() => cycleLevel(skill)} style={{
@@ -1023,48 +1072,53 @@ function SkillsCard({ t }) {
                   </span>
                 )}
               </button>
-              {editing && isCustom ? (
-                <button onClick={() => removeCustomSkill(activeGroup, skill)} style={{
-                  width: 28, height: 28, borderRadius: 8, flexShrink: 0, border: `1px solid ${t.semantic.low}55`,
-                  background: 'transparent', color: t.semantic.low, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                }}>×</button>
-              ) : (
-                <button onClick={() => openPrSheet(skill)} style={{
-                  width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                  border: `1px solid ${hasPr ? group.col : t.border}`,
-                  background: hasPr ? group.col + '20' : 'transparent',
-                  color: hasPr ? group.col : t.fgFaint,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: t.fonts.mono, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
-                }}>
-                  PR
-                </button>
-              )}
+              <button onClick={() => openPrSheet(skill)} style={{
+                width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                border: `1px solid ${hasPr ? group.col : t.border}`,
+                background: hasPr ? group.col + '20' : 'transparent',
+                color: hasPr ? group.col : t.fgFaint,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: t.fonts.mono, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
+              }}>
+                PR
+              </button>
             </div>
           );
         })}
       </div>
 
-      {/* Add custom movement (edit mode) */}
-      {editing && (
+      {/* Add movement (separate button) */}
+      {adding ? (
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <input
             value={newSkill}
+            autoFocus
             onChange={e => setNewSkill(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addCustomSkill()}
-            placeholder={`Agregar a ${activeGroup}…`}
+            onKeyDown={e => e.key === 'Enter' && addSkill()}
+            placeholder={`Nuevo movimiento en ${activeGroup}…`}
             style={{ flex: 1, padding: '9px 11px', borderRadius: 10, border: `1px solid ${t.border}`, background: t.bg, color: t.fg, fontFamily: t.fonts.body, fontSize: 13, outline: 'none' }}
           />
-          <button onClick={addCustomSkill} style={{
+          <button onClick={addSkill} style={{
             padding: '9px 14px', borderRadius: 10, border: 'none', background: t.accent, color: '#0A0908',
             cursor: 'pointer', fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13, flexShrink: 0,
           }}>Agregar</button>
+          <button onClick={() => { setAdding(false); setNewSkill(''); }} style={{
+            padding: '9px 10px', borderRadius: 10, border: `1px solid ${t.divider}`, background: 'transparent',
+            color: t.fgMuted, cursor: 'pointer', flexShrink: 0,
+          }}>✕</button>
         </div>
+      ) : (
+        <button onClick={() => setAdding(true)} style={{
+          marginTop: 10, width: '100%', padding: '10px', borderRadius: 10,
+          border: `1px dashed ${t.divider}`, background: 'transparent', color: t.fgMuted, cursor: 'pointer',
+          fontFamily: t.fonts.body, fontSize: 13, fontWeight: 600,
+        }}>
+          + Agregar movimiento
+        </button>
       )}
 
       <div style={{ marginTop: 10, fontFamily: t.fonts.body, fontSize: 11, color: t.fgFaint }}>
-        {editing ? 'Agrega tus propios movimientos · × para quitar los personalizados' : 'Toca el nombre para cambiar nivel · PR para registrar récords'}
+        {editing ? 'Renombra los movimientos o quítalos con × · tus PRs y niveles se conservan' : 'Toca el nombre para cambiar nivel · PR para registrar récords'}
       </div>
 
       {/* PR Sheet overlay */}
