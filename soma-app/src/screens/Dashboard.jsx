@@ -11,7 +11,7 @@ import {
 import { useAuth } from '../context/AuthContext.jsx';
 import { supabase } from '../lib/supabase.js';
 import { checkAvailability, requestPermissions, getTodayHealthData } from '../lib/healthConnect.js';
-import { computeReadiness, loadTodaySignals } from '../lib/readiness.js';
+import { computeReadiness, loadTodaySignals, readinessAdvice } from '../lib/readiness.js';
 
 // ─── 2×2 Widget ──────────────────────────────────────────────────────
 function Widget({ t, Icon, lab, main, sub, col, onClick }) {
@@ -75,6 +75,7 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
   const [healthData,   setHealthData]   = useState(null);
   const [hcStatus,     setHcStatus]     = useState('idle'); // idle|unavailable|needs-permission|connected
   const [todayMood,    setTodayMood]    = useState(null);
+  const [showReadiness, setShowReadiness] = useState(false);
 
   // Health Connect
   useEffect(() => {
@@ -173,8 +174,10 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
         </div>
 
         {/* ── Recovery hero card ── */}
-        <div style={{ margin: '18px 20px 0', background: readiness ? readiness.color : t.accent, color: '#0A0908',
-          borderRadius: 20, padding: '16px 18px', position: 'relative', overflow: 'hidden' }}>
+        <div onClick={readiness ? () => setShowReadiness(true) : undefined}
+          style={{ margin: '18px 20px 0', background: readiness ? readiness.color : t.accent, color: '#0A0908',
+          borderRadius: 20, padding: '16px 18px', position: 'relative', overflow: 'hidden',
+          cursor: readiness ? 'pointer' : 'default' }}>
 
           {/* F5 watermark inside card */}
           <div style={{ position: 'absolute', right: -14, bottom: -14, width: 110, height: 110,
@@ -188,6 +191,13 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
             <IconRecovery size={16} stroke={2} color="#0A0908"/>
             <MonoLabel t={t} color="#0A0908CC">{readiness ? 'readiness' : 'recovery'}</MonoLabel>
+            {readiness && (
+              <span style={{ marginLeft: 'auto', fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700,
+                color: '#0A0908', opacity: 0.6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                toca para ver
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0A0908" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              </span>
+            )}
           </div>
 
           {/* Score row */}
@@ -281,6 +291,80 @@ export function DashboardScreen({ t, onNav, onMenu, onPlus }) {
         </div>
 
       </div>
+
+      {/* Readiness detail modal */}
+      {showReadiness && readiness && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 95, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}
+          onClick={() => setShowReadiness(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: '100%', background: t.bg, borderRadius: '24px 24px 0 0', padding: '22px 20px 40px',
+            maxHeight: '88%', overflowY: 'auto',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ fontFamily: t.fonts.display, fontWeight: 700, fontSize: 22, color: t.fg }}>Readiness</div>
+              <button onClick={() => setShowReadiness(false)} style={{ width: 34, height: 34, borderRadius: '50%', border: 'none', background: t.surface, color: t.fg, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            </div>
+
+            {/* Big score */}
+            <div style={{ background: readiness.color, borderRadius: 18, padding: '18px 20px', marginBottom: 16, color: '#0A0908' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+                <span style={{ fontFamily: t.fonts.display, fontWeight: 800, fontSize: 52, lineHeight: 1, letterSpacing: '-0.04em' }}>{readiness.score}</span>
+                <span style={{ fontFamily: t.fonts.mono, fontSize: 15, fontWeight: 700, opacity: 0.6, marginBottom: 8 }}>/100 · {readiness.label}</span>
+              </div>
+            </div>
+
+            {/* What it measures */}
+            <div style={{ fontFamily: t.fonts.body, fontSize: 13.5, color: t.fgMuted, lineHeight: 1.6, marginBottom: 18 }}>
+              El readiness combina tus datos del día para estimar qué tan recuperado está tu cuerpo. Cada factor aporta un porcentaje del total.
+            </div>
+
+            {/* Factor breakdown */}
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', color: t.fgFaint, textTransform: 'uppercase', marginBottom: 10 }}>Qué lo está midiendo</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+              {readiness.components.map(c => {
+                const col = c.score >= 75 ? '#34C759' : c.score >= 55 ? '#F59E0B' : '#DC2626';
+                return (
+                  <div key={c.key}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                      <span style={{ fontFamily: t.fonts.body, fontWeight: 600, fontSize: 14, color: t.fg }}>{c.key}</span>
+                      <span style={{ fontFamily: t.fonts.mono, fontSize: 12, color: t.fgMuted }}>{c.detail} · {c.score}/100</span>
+                    </div>
+                    <div style={{ height: 7, borderRadius: 4, background: t.s2, overflow: 'hidden' }}>
+                      <div style={{ width: `${c.score}%`, height: '100%', background: col, borderRadius: 4 }}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Why low / weakest */}
+            {readiness.weakest && readiness.score < 80 && (
+              <div style={{ background: t.surface, border: `1px solid ${t.divider}`, borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+                <div style={{ fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.fgFaint, textTransform: 'uppercase', marginBottom: 6 }}>Lo que más lo baja</div>
+                <div style={{ fontFamily: t.fonts.body, fontSize: 14, color: t.fg, fontWeight: 600 }}>{readiness.weakest.key} ({readiness.weakest.score}/100)</div>
+              </div>
+            )}
+
+            {/* Recommendation */}
+            <div style={{ background: readiness.color + '20', border: `1px solid ${readiness.color}55`, borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+              <div style={{ fontFamily: t.fonts.mono, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: readiness.color, textTransform: 'uppercase', marginBottom: 6 }}>Qué hacer hoy</div>
+              <div style={{ fontFamily: t.fonts.body, fontSize: 14, color: t.fg, lineHeight: 1.6 }}>{readinessAdvice(readiness.score)}</div>
+            </div>
+
+            {/* Doesn't match how you feel */}
+            <div style={{ fontFamily: t.fonts.body, fontSize: 12.5, color: t.fgMuted, lineHeight: 1.6 }}>
+              ¿No coincide con cómo te sientes? El score se basa en lo que registraste. Ajusta tu <b style={{ color: t.fg }}>cansancio</b> o tu <b style={{ color: t.fg }}>dolor</b> en la Bitácora y el readiness se recalcula. Tú mandas sobre el número.
+            </div>
+            <button onClick={() => { setShowReadiness(false); onNav('journal'); }} style={{
+              marginTop: 16, width: '100%', padding: '13px', borderRadius: 14, border: 'none',
+              background: t.accent, color: '#0A0908', cursor: 'pointer',
+              fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14,
+            }}>
+              Ajustar en Bitácora
+            </button>
+          </div>
+        </div>
+      )}
 
       <Fab t={t} onClick={onPlus}/>
     </ScreenFrame>

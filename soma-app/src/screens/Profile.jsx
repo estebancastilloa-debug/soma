@@ -8,7 +8,7 @@ import { F5, WordmarkWithMark } from '../marks.jsx';
 import { checkAvailability, requestPermissions, requestPermissionsVerbose } from '../lib/healthConnect.js';
 import { useTheme, INTENSITIES, ACCENTS } from '../theme.jsx';
 
-const APP_BUILD = 'b8';
+const APP_BUILD = 'b9';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -839,8 +839,32 @@ function SkillsCard({ t }) {
   const [prSkill, setPrSkill] = useState(null); // skill name whose PR sheet is open
   const [prInputs, setPrInputs] = useState({}); // temp input values in the PR sheet
   const [prUnit, setPrUnit] = useState('kg');   // weight unit in the sheet
+  const [editing, setEditing] = useState(false);
+  const [newSkill, setNewSkill] = useState('');
+  const [customSkills, setCustomSkills] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('soma_custom_skills') || '{}'); }
+    catch { return {}; }
+  });
 
   const today = () => new Date().toISOString().slice(0, 10);
+
+  function persistCustom(next) {
+    setCustomSkills(next);
+    localStorage.setItem('soma_custom_skills', JSON.stringify(next));
+  }
+
+  function addCustomSkill() {
+    const name = newSkill.trim();
+    if (!name) return;
+    const list = customSkills[activeGroup] || [];
+    if (list.includes(name)) { setNewSkill(''); return; }
+    persistCustom({ ...customSkills, [activeGroup]: [...list, name] });
+    setNewSkill('');
+  }
+
+  function removeCustomSkill(group, name) {
+    persistCustom({ ...customSkills, [group]: (customSkills[group] || []).filter(s => s !== name) });
+  }
 
   function cycleLevel(skill) {
     const cur = skills[skill] || 0;
@@ -904,13 +928,23 @@ function SkillsCard({ t }) {
   }
 
   const group = SKILL_GROUPS.find(g => g.group === activeGroup);
+  const groupSkills = [...(group?.skills || []), ...(customSkills[activeGroup] || [])];
   const sheetMetric = prSkill ? metricForSkill(prSkill) : null;
   const metricLabel = { weight: 'PESO', reps: 'REPS MÁX', time: 'MEJOR TIEMPO' }[sheetMetric] || '';
 
   return (
     <div style={{ background: t.surface, borderRadius: 16, padding: 16, margin: '8px 20px', border: `1px solid ${t.divider}` }}>
-      <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg, marginBottom: 12 }}>
-        Skills & Movimientos
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 14, color: t.fg }}>
+          Skills & Movimientos
+        </div>
+        <button onClick={() => setEditing(e => !e)} style={{
+          padding: '5px 12px', borderRadius: 10, border: `1px solid ${editing ? t.accent : t.divider}`,
+          background: editing ? t.accent + '18' : 'transparent', color: editing ? t.accent : t.fgMuted,
+          cursor: 'pointer', fontFamily: t.fonts.body, fontWeight: 600, fontSize: 12,
+        }}>
+          {editing ? 'Listo' : 'Editar'}
+        </button>
       </div>
 
       {/* Category tabs */}
@@ -952,12 +986,13 @@ function SkillsCard({ t }) {
 
       {/* Skills list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {group?.skills.map(skill => {
+        {groupSkills.map(skill => {
           const level = skills[skill] || 0;
           const lv = SKILL_LEVELS[level];
           const skillPrs = prs[skill] || null;
           const summary = prSummary(skill, skillPrs);
           const hasPr = !!summary;
+          const isCustom = (customSkills[activeGroup] || []).includes(skill);
           return (
             <div key={skill} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button onClick={() => cycleLevel(skill)} style={{
@@ -985,22 +1020,48 @@ function SkillsCard({ t }) {
                   </span>
                 )}
               </button>
-              <button onClick={() => openPrSheet(skill)} style={{
-                width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                border: `1px solid ${hasPr ? group.col : t.border}`,
-                background: hasPr ? group.col + '20' : 'transparent',
-                color: hasPr ? group.col : t.fgFaint,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: t.fonts.mono, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
-              }}>
-                PR
-              </button>
+              {editing && isCustom ? (
+                <button onClick={() => removeCustomSkill(activeGroup, skill)} style={{
+                  width: 28, height: 28, borderRadius: 8, flexShrink: 0, border: `1px solid ${t.semantic.low}55`,
+                  background: 'transparent', color: t.semantic.low, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+                }}>×</button>
+              ) : (
+                <button onClick={() => openPrSheet(skill)} style={{
+                  width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                  border: `1px solid ${hasPr ? group.col : t.border}`,
+                  background: hasPr ? group.col + '20' : 'transparent',
+                  color: hasPr ? group.col : t.fgFaint,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: t.fonts.mono, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
+                }}>
+                  PR
+                </button>
+              )}
             </div>
           );
         })}
       </div>
+
+      {/* Add custom movement (edit mode) */}
+      {editing && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <input
+            value={newSkill}
+            onChange={e => setNewSkill(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addCustomSkill()}
+            placeholder={`Agregar a ${activeGroup}…`}
+            style={{ flex: 1, padding: '9px 11px', borderRadius: 10, border: `1px solid ${t.border}`, background: t.bg, color: t.fg, fontFamily: t.fonts.body, fontSize: 13, outline: 'none' }}
+          />
+          <button onClick={addCustomSkill} style={{
+            padding: '9px 14px', borderRadius: 10, border: 'none', background: t.accent, color: '#0A0908',
+            cursor: 'pointer', fontFamily: t.fonts.body, fontWeight: 700, fontSize: 13, flexShrink: 0,
+          }}>Agregar</button>
+        </div>
+      )}
+
       <div style={{ marginTop: 10, fontFamily: t.fonts.body, fontSize: 11, color: t.fgFaint }}>
-        Toca el nombre para cambiar nivel · PR para registrar récords
+        {editing ? 'Agrega tus propios movimientos · × para quitar los personalizados' : 'Toca el nombre para cambiar nivel · PR para registrar récords'}
       </div>
 
       {/* PR Sheet overlay */}

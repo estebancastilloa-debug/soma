@@ -30,9 +30,10 @@ const PHYS_STATES = [
 
 // ─── Body area groups ──────────────────────────────────────────────────
 const BODY_AREA_GROUPS = [
-  { group: 'SUPERIOR', areas: ['Cuello', 'Hombro izq', 'Hombro der', 'Codo izq', 'Codo der', 'Muñeca izq', 'Muñeca der'] },
-  { group: 'TORSO',    areas: ['Espalda alta', 'Lumbar', 'Pecho', 'Core'] },
-  { group: 'INFERIOR', areas: ['Cadera', 'Cuádriceps izq', 'Cuádriceps der', 'Isquios izq', 'Isquios der', 'Rodilla izq', 'Rodilla der', 'Tobillo izq', 'Tobillo der'] },
+  { group: 'SUPERIOR', areas: ['Cuello', 'Trapecio', 'Hombro izq', 'Hombro der', 'Bíceps', 'Tríceps', 'Codo izq', 'Codo der', 'Antebrazo izq', 'Antebrazo der', 'Muñeca izq', 'Muñeca der'] },
+  { group: 'TORSO',    areas: ['Pecho', 'Espalda alta', 'Espalda media', 'Espalda baja', 'Dorsales', 'Core / Abdomen', 'Oblicuos'] },
+  { group: 'CADERA',   areas: ['Cadera izq', 'Cadera der', 'Glúteo izq', 'Glúteo der', 'Flexor de cadera', 'Ingle / Aductores'] },
+  { group: 'PIERNAS',  areas: ['Cuádriceps izq', 'Cuádriceps der', 'Isquios izq', 'Isquios der', 'Rodilla izq', 'Rodilla der', 'Pantorrilla izq', 'Pantorrilla der', 'Tobillo izq', 'Tobillo der', 'Pie izq', 'Pie der'] },
 ];
 
 // Pain intensity per body area
@@ -426,7 +427,10 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
 
   const [tab, setTab] = useState('dia');
   const [mood, setMood] = useState(3);
-  const [habits, setHabits] = useState([]);        // completed today
+  const [habits, setHabits] = useState(() => {     // completed today (localStorage-first)
+    try { return JSON.parse(localStorage.getItem('soma_habits_done') || '{}')[today] || []; }
+    catch { return []; }
+  });
   const [journalText, setJournalText]   = useState('');
   const [locusAnswers, setLocusAnswers] = useState({ q1:'', q2:'', q3:'' });
 
@@ -490,7 +494,9 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
       .then(({ data }) => {
         if (!data) return;
         if (data.mood != null)           setMood(data.mood);
-        if (data.habit_ids?.length)      setHabits(data.habit_ids);
+        // only adopt server habits if we have nothing saved locally for today
+        const localDone = (() => { try { return JSON.parse(localStorage.getItem('soma_habits_done') || '{}')[today] || []; } catch { return []; } })();
+        if (data.habit_ids?.length && localDone.length === 0) setHabits(data.habit_ids);
         if (data.journal_text)           setJournalText(data.journal_text);
         if (data.locus_text) {
           try { setLocusAnswers(JSON.parse(data.locus_text)); } catch {}
@@ -498,21 +504,33 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
       });
   }, [user]);
 
-  // Supabase save
+  // Persist daily habit completions to localStorage (always works offline)
+  function persistHabitsLocal(arr) {
+    try {
+      const all = JSON.parse(localStorage.getItem('soma_habits_done') || '{}');
+      all[today] = arr;
+      localStorage.setItem('soma_habits_done', JSON.stringify(all));
+    } catch {}
+  }
+
+  // Supabase save (best-effort)
   async function saveLog({ newMood = mood, newHabits = habits, newJournal = journalText, newLocus = locusAnswers } = {}) {
     if (!user) return;
-    await supabase.from('daily_log').upsert({
-      user_id: user.id, date: today,
-      mood: newMood, habit_ids: newHabits,
-      journal_text: newJournal,
-      locus_text: JSON.stringify(newLocus),
-    }, { onConflict: 'user_id,date' });
+    try {
+      await supabase.from('daily_log').upsert({
+        user_id: user.id, date: today,
+        mood: newMood, habit_ids: newHabits,
+        journal_text: newJournal,
+        locus_text: JSON.stringify(newLocus),
+      }, { onConflict: 'user_id,date' });
+    } catch {}
   }
 
   function toggleHabit(id) {
     const next = habits.includes(id) ? habits.filter(x => x !== id) : [...habits, id];
     setHabits(next);
-    saveLog({ newHabits: next });
+    persistHabitsLocal(next);   // guaranteed local save
+    saveLog({ newHabits: next }); // cloud sync (best-effort)
   }
 
   function handleJournalChange(text) {
