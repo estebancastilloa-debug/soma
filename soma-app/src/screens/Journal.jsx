@@ -9,6 +9,7 @@ import { StatusBar, PillarHeader, MonoLabel, SectionHead, ScreenFrame, Fab, Drag
 import { useBackClose } from '../lib/backstack.js';
 import { IconHeart, IconRecovery, IconSleep, IconWater, MOOD_ICONS, MOOD_LABELS } from '../icons.jsx';
 import { HABITS, PROMPTS } from '../data/habits.js';
+import { loadCustomHabits, addCustomHabit } from '../lib/customHabits.js';
 
 // ─── Spanish labels for habits ────────────────────────────────────────
 const HABIT_ES = {
@@ -230,10 +231,57 @@ const QUIZZES = {
   },
 };
 
+// ─── Recommended habits per topic / quiz result ────────────────────────
+// Each maps to a trackable habit: { id, cat, lab, sub }. Adding it puts it in
+// the daily habit tracker, so the diagnosis literally reshapes what you track.
+const HABIT_RECS = {
+  // by topic (general)
+  adhd: [
+    { id:'rec_focus',   cat:'mind',  lab:'Bloque de foco profundo', sub:'25 min sin distracciones' },
+    { id:'rec_brain',   cat:'mind',  lab:'Vaciar la mente',         sub:'Escribir las tareas del día' },
+  ],
+  energia: [
+    { id:'rec_struct',  cat:'mind',  lab:'Estructura del día',      sub:'Define 3 prioridades (energía masculina)' },
+    { id:'rec_flow',    cat:'mind',  lab:'20 min sin agenda',       sub:'Fluir, sin productividad (energía femenina)' },
+  ],
+  heridas: [
+    { id:'rec_inner',   cat:'mind',  lab:'Reparenting',             sub:'Darte lo que tu yo joven necesitaba' },
+  ],
+  locus_p: [
+    { id:'stoic' },
+    { id:'rec_agency',  cat:'mind',  lab:'Una decisión propia',     sub:'Tomar una decisión sin pedir opinión' },
+  ],
+  apego: [
+    { id:'meditate' }, { id:'breath' },
+  ],
+  // by quiz result
+  result: {
+    endo:    [ { id:'walk' }, { id:'rec_fastcardio', cat:'body', lab:'Cardio en ayunas', sub:'20-30 min zona 2' }, { id:'protgoal' } ],
+    ecto:    [ { id:'protgoal' }, { id:'creatine' }, { id:'rec_surplus', cat:'fuel', lab:'Comida extra', sub:'Superávit calórico para ganar masa' } ],
+    meso:    [ { id:'protgoal' }, { id:'mobility' } ],
+    ansioso: [ { id:'meditate' }, { id:'journal' }, { id:'breath' } ],
+    evitativo:[ { id:'connect' }, { id:'rec_express', cat:'social', lab:'Nombrar una emoción', sub:'Decir en voz alta lo que sientes' } ],
+    seguro:  [ { id:'gratitude' } ],
+  },
+};
+
 // ─── InnerMapDetail ────────────────────────────────────────────────────
-function InnerMapDetail({ t, item, data, onBack, onUpdate }) {
+function InnerMapDetail({ t, item, data, onBack, onUpdate, trackedHabitIds = [], onAddHabit, onRemoveHabit }) {
   const detail = INNER_MAP_DATA[item.id] || {};
   const quiz = QUIZZES[item.id];
+
+  // Resolve recommended habits for this topic + quiz result into {id,cat,lab,sub}
+  const recHabits = (() => {
+    const refs = [...(HABIT_RECS[item.id] || [])];
+    if (data.quizResult && HABIT_RECS.result[data.quizResult]) refs.push(...HABIT_RECS.result[data.quizResult]);
+    const seen = new Set();
+    return refs.map(r => {
+      const base = r.lab ? r : (HABITS.find(h => h.id === r.id) || null);
+      if (!base || seen.has(base.id)) return null;
+      seen.add(base.id);
+      return { id: base.id, cat: base.cat || 'mind', lab: base.lab, sub: base.sub || '' };
+    }).filter(Boolean);
+  })();
   const [copied, setCopied] = useState(false);
   const [editingResponse, setEditingResponse] = useState(!data.nlmResponse);
   const [exercises, setExercises] = useState(() => {
@@ -489,6 +537,44 @@ Devuelve el plan completo siguiendo ese formato, sin texto extra al inicio ni al
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* HÁBITOS RECOMENDADOS (diagnóstico → tracker diario) */}
+        {recHabits.length > 0 && (
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + t.divider }}>
+            <div style={{ fontFamily: t.fonts.mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', color: detail.color || t.accent, textTransform: 'uppercase', marginBottom: 6 }}>
+              Hábitos para ti
+            </div>
+            <div style={{ fontFamily: t.fonts.body, fontSize: 11.5, color: t.fgFaint, lineHeight: 1.5, marginBottom: 12 }}>
+              Según tu diagnóstico, estos hábitos te ayudan. Agrégalos y aparecerán en tu tracker diario de la Bitácora.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {recHabits.map(h => {
+                const added = trackedHabitIds.includes(h.id);
+                return (
+                  <div key={h.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 12,
+                    background: added ? `${detail.color || t.accent}12` : t.surface,
+                    border: `1px solid ${added ? (detail.color || t.accent) + '55' : t.divider}`,
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13.5, color: t.fg }}>{h.lab}</div>
+                      {h.sub && <div style={{ fontFamily: t.fonts.body, fontSize: 11.5, color: t.fgMuted, marginTop: 1 }}>{h.sub}</div>}
+                    </div>
+                    <button onClick={() => added ? onRemoveHabit?.(h.id) : onAddHabit?.(h)} style={{
+                      flexShrink: 0, padding: '7px 14px', borderRadius: 999, cursor: 'pointer',
+                      border: added ? `1px solid ${t.divider}` : 'none',
+                      background: added ? 'transparent' : (detail.color || t.accent),
+                      color: added ? t.fgMuted : '#fff',
+                      fontFamily: t.fonts.body, fontWeight: 700, fontSize: 12.5,
+                    }}>
+                      {added ? 'Quitar' : '+ Agregar'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -818,6 +904,24 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     } catch { return HABITS.slice(0, 8).map(h => h.id); }
   });
   const [showHabitEdit, setShowHabitEdit] = useState(false);
+  const [customHabits, setCustomHabits] = useState(() => loadCustomHabits());
+  const allHabits = [...HABITS, ...customHabits];
+
+  // Add a (psych-recommended) habit to the daily tracker
+  function addHabitToTracker(habit) {
+    if (habit.lab) setCustomHabits(addCustomHabit(habit));
+    if (!habitTemplate.includes(habit.id)) {
+      const next = [...habitTemplate, habit.id];
+      setHabitTemplate(next);
+      localStorage.setItem('soma_habit_template', JSON.stringify(next));
+    }
+  }
+  function removeHabitFromTracker(id) {
+    const next = habitTemplate.filter(x => x !== id);
+    setHabitTemplate(next);
+    localStorage.setItem('soma_habit_template', JSON.stringify(next));
+  }
+
   useBackClose(!!painSheetArea, () => setPainSheetArea(null));
   useBackClose(!!psychDetailItem, () => setPsychDetailItem(null));
   useBackClose(showHabitEdit, () => setShowHabitEdit(false));
@@ -954,7 +1058,7 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     lines.push('');
 
     // ── Hábitos ──
-    const activeHabits = HABITS.filter(h => habitTemplate.includes(h.id));
+    const activeHabits = allHabits.filter(h => habitTemplate.includes(h.id));
     const doneHabits   = activeHabits.filter(h => habits.includes(h.id));
     lines.push(`## ✅ Hábitos — ${doneHabits.length}/${activeHabits.length}`);
     activeHabits.forEach(h => {
@@ -1109,7 +1213,7 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   }
 
   const todayPrompt   = PROMPTS[new Date().getDay() % PROMPTS.length];
-  const activeHabits  = HABITS.filter(h => habitTemplate.includes(h.id));
+  const activeHabits  = allHabits.filter(h => habitTemplate.includes(h.id));
   const doneCount     = habits.filter(id => activeHabits.find(h => h.id === id)).length;
 
   return (
@@ -1525,9 +1629,52 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
             <div style={{ margin:'14px 20px 0' }}>
               <div style={{ fontFamily:t.fonts.display, fontWeight:800, fontSize:22, letterSpacing:'-0.03em', color:t.fg, marginBottom:4 }}>Inner Map</div>
               <div style={{ fontFamily:t.fonts.body, fontSize:13, color:t.fgMuted, lineHeight:1.5 }}>
-                Toca cualquier marco para explorar tu perfil psicológico en profundidad.
+                Tu perfil psicológico. Lo que descubras aquí alimenta tus hábitos y la programación de tus entrenos.
               </div>
             </div>
+
+            {/* Perfil psicológico — resumen que conecta todo */}
+            {(() => {
+              const exploredCount = PSYCH_ITEMS.filter(it => (psychData[it.id]?.status) === 'explored').length;
+              const bio = psychData.biotipos?.quizResult;
+              const ape = psychData.apego?.quizResult;
+              const bioLbl = bio && QUIZZES.biotipos.results[bio]?.label;
+              const apeLbl = ape && QUIZZES.apego.results[ape]?.label;
+              const chips = [];
+              if (bioLbl) chips.push({ k: 'Somatotipo', v: bioLbl });
+              if (apeLbl) chips.push({ k: 'Apego', v: apeLbl });
+              const recCount = customHabits.length;
+              return (
+                <div style={{ margin:'12px 20px 0', padding:16, background:t.surface, borderRadius:18, border:'1px solid '+t.divider }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: chips.length ? 12 : 0 }}>
+                    <MonoLabel t={t}>mi perfil</MonoLabel>
+                    <span style={{ fontFamily:t.fonts.mono, fontSize:9, fontWeight:700, color:t.accent, letterSpacing:'0.1em' }}>
+                      {exploredCount}/{PSYCH_ITEMS.length} EXPLORADO
+                    </span>
+                  </div>
+                  {chips.length > 0 ? (
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                      {chips.map(c => (
+                        <div key={c.k} style={{ padding:'8px 12px', borderRadius:10, background:t.s2 }}>
+                          <div style={{ fontFamily:t.fonts.mono, fontSize:8, fontWeight:700, color:t.fgFaint, letterSpacing:'0.12em', textTransform:'uppercase' }}>{c.k}</div>
+                          <div style={{ fontFamily:t.fonts.body, fontWeight:700, fontSize:13, color:t.fg, marginTop:2 }}>{c.v}</div>
+                        </div>
+                      ))}
+                      {recCount > 0 && (
+                        <div style={{ padding:'8px 12px', borderRadius:10, background:t.accent+'18' }}>
+                          <div style={{ fontFamily:t.fonts.mono, fontSize:8, fontWeight:700, color:t.accent, letterSpacing:'0.12em', textTransform:'uppercase' }}>Hábitos añadidos</div>
+                          <div style={{ fontFamily:t.fonts.body, fontWeight:700, fontSize:13, color:t.fg, marginTop:2 }}>{recCount}</div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ fontFamily:t.fonts.body, fontSize:12.5, color:t.fgMuted, lineHeight:1.5, marginTop:8 }}>
+                      Explora los temas de abajo y haz sus quizzes. Tu somatotipo, apego y patrones aparecerán aquí y darán forma a tus hábitos y entrenos.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {PSYCH_ITEMS.map(item => {
               const data = psychData[item.id] || { status:'unexplored', notes:'' };
@@ -1688,6 +1835,9 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
           data={psychData[psychDetailItem.id] || { status: 'unexplored', notes: '' }}
           onBack={() => setPsychDetailItem(null)}
           onUpdate={updatePsych}
+          trackedHabitIds={habitTemplate}
+          onAddHabit={addHabitToTracker}
+          onRemoveHabit={removeHabitFromTracker}
         />
       )}
 
@@ -1711,7 +1861,7 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
           </div>
           <div style={{ flex:1, overflow:'auto', padding:'0 20px 60px' }}>
             {['body','mind','fuel','social'].map(cat => {
-              const catHabits = HABITS.filter(h => h.cat === cat);
+              const catHabits = allHabits.filter(h => h.cat === cat);
               const catColor  = t.pillar[CAT_PILLAR[cat]] || t.accent;
               return (
                 <div key={cat} style={{ marginBottom:20 }}>

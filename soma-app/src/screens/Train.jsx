@@ -601,6 +601,20 @@ function buildProgramPrompt(profile, workouts) {
   const advancedSkills = Object.entries(skills).filter(([,lv]) => lv >= 2).map(([s]) => s);
   const learningSkills = Object.entries(skills).filter(([,lv]) => lv === 1).map(([s]) => s);
 
+  // Psychological profile → tailors the training (somatype, energy, mindset)
+  const psych = (() => { try { return JSON.parse(localStorage.getItem('soma_psychology') || '{}'); } catch { return {}; } })();
+  const BIOTYPE = { ecto: 'Ectomorfo (cuesta ganar masa)', meso: 'Mesomorfo (atlético)', endo: 'Endomorfo (guarda grasa)' };
+  const psychLines = [];
+  if (psych.biotipos?.quizResult) psychLines.push(`  Somatotipo: ${BIOTYPE[psych.biotipos.quizResult] || psych.biotipos.quizResult}`);
+  ['adhd','energia','heridas','locus_p','apego'].forEach(id => {
+    const note = psych[id]?.nlmResponse || psych[id]?.notes;
+    if (note && note.trim()) {
+      const first = note.trim().split('\n').filter(l => l.trim())[0];
+      if (first) psychLines.push(`  ${id}: ${first.slice(0, 140)}`);
+    }
+  });
+  const psychStr = psychLines.length ? psychLines.join('\n') : '  (Sin perfil psicológico registrado aún)';
+
   return `═══════════════════════════════════════
 SOMA — PROMPT DE PROGRAMACIÓN SEMANAL
 ${today}
@@ -636,6 +650,9 @@ ESTADO FÍSICO / LESIONES:
 
 ÁREAS DE ENFOQUE ACTUALES:
 ${focusStr}
+
+PERFIL PSICOLÓGICO (ajusta el enfoque, el tono y la carga mental):
+${psychStr}
 
 ═══════════════════════════════════════
 SOLICITUD:
