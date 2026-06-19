@@ -1,26 +1,31 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { ScreenFrame, StatusBar } from '../chrome.jsx';
 import { F5 } from '../marks.jsx';
 
 export function AuthScreen({ t }) {
   const [mode, setMode] = useState('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  async function handleSubmit() {
-    if (!email || !password) return;
+  const emailRef = useRef(null);
+  const passRef = useRef(null);
+
+  async function handleSubmit(e) {
+    if (e) e.preventDefault();
+    // Read straight from the inputs so autofill / paste always work
+    const email = (emailRef.current?.value || '').trim();
+    const password = passRef.current?.value || '';
+    if (!email || !password) { setError('Escribe tu email y contraseña.'); return; }
+
     setLoading(true);
     setError(null);
     setSuccess(null);
 
     if (mode === 'signup') {
       const { error } = await supabase.auth.signUp({
-        email,
-        password,
+        email, password,
         options: { emailRedirectTo: window.location.origin },
       });
       if (error) setError(error.message);
@@ -73,7 +78,7 @@ export function AuthScreen({ t }) {
           border: `1px solid ${t.divider}`, marginBottom: 20,
         }}>
           {[['login', 'Entrar'], ['signup', 'Crear cuenta']].map(([m, lab]) => (
-            <button key={m} onClick={() => { setMode(m); setError(null); setSuccess(null); }}
+            <button key={m} type="button" onClick={() => { setMode(m); setError(null); setSuccess(null); }}
               style={{
                 flex: 1, padding: '9px 0', borderRadius: 999, border: 'none',
                 cursor: 'pointer', fontFamily: t.fonts.body, fontWeight: 600, fontSize: 14,
@@ -84,19 +89,19 @@ export function AuthScreen({ t }) {
           ))}
         </div>
 
-        {/* Inputs — wrapped in a form so password managers recognize it */}
-        <form onSubmit={e => { e.preventDefault(); handleSubmit(); }} autoComplete="on">
+        {/* Inputs in a form so password managers recognize the login */}
+        <form onSubmit={handleSubmit} autoComplete="on">
           <input
+            ref={emailRef}
             type="email" name="email" id="email"
             autoComplete="username"
-            inputMode="email" autoCapitalize="none" autoCorrect="off"
-            value={email} onChange={e => setEmail(e.target.value)}
+            inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false}
             placeholder="Email" style={inputStyle}
           />
           <input
+            ref={passRef}
             type="password" name="password" id="password"
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            value={password} onChange={e => setPassword(e.target.value)}
             placeholder="Contraseña (mín. 6 caracteres)" style={{ ...inputStyle, marginBottom: 16 }}
           />
 
@@ -118,14 +123,13 @@ export function AuthScreen({ t }) {
 
           <button
             type="submit"
-            disabled={loading || !email || !password}
+            disabled={loading}
             style={{
               width: '100%', padding: '15px', borderRadius: 14, border: 'none',
               cursor: loading ? 'default' : 'pointer',
-              background: (!email || !password) ? t.s2 : t.accent,
-              color: (!email || !password) ? t.fgFaint : t.onAccent,
+              background: t.accent, color: t.onAccent,
               fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16,
-              transition: 'background 0.15s',
+              opacity: loading ? 0.6 : 1, transition: 'opacity 0.15s',
             }}
           >
             {loading ? 'Cargando...' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
