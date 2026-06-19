@@ -47,11 +47,13 @@ const PAIN_LEVELS = [
   { v: 3, label: 'Fuerte',    color: '#DC2626' },
 ];
 
-// Pain type: exercise soreness (normal/good) vs injury (bad)
+// Pain type: exercise soreness (normal/good) vs overload (warning) vs injury (bad)
 const PAIN_TYPES = [
-  { id: 'exercise', label: 'Ejercicio', sub: 'Agujetas / esfuerzo normal', color: '#42C5F5' },
-  { id: 'injury',   label: 'Lesión',    sub: 'Dolor que preocupa',          color: '#DC2626' },
+  { id: 'exercise', label: 'Ejercicio',  sub: 'Agujetas / esfuerzo normal',   color: '#42C5F5' },
+  { id: 'overload', label: 'Sobrecarga', sub: 'Tensión por exceso de carga',  color: '#F59E0B' },
+  { id: 'injury',   label: 'Lesión',     sub: 'Dolor que preocupa',           color: '#DC2626' },
 ];
+const PAIN_TYPE_WEIGHT = { exercise: 1, overload: 1.3, injury: 1.6 };
 
 // Normalize stored area data (legacy array, legacy number, or {level,type})
 function normalizeAreas(raw) {
@@ -1075,9 +1077,9 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     } catch { return {}; }
   })();
 
-  // readiness: pass intensities weighted by type (injury counts more)
+  // readiness: pass intensities weighted by type (injury > overload > exercise)
   const painMapWeighted = Object.fromEntries(
-    Object.entries(bodyAreas).map(([a, v]) => [a, v.type === 'injury' ? v.level * 1.6 : v.level])
+    Object.entries(bodyAreas).map(([a, v]) => [a, v.level * (PAIN_TYPE_WEIGHT[v.type] || 1)])
   );
   const readiness = computeReadiness({ healthData, fatigueId: physMood, mentalMood: mood, painMap: painMapWeighted });
 

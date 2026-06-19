@@ -65,8 +65,8 @@
 html, body, #root { margin: 0; padding: 0; height: 100%; }
 body {
   font-family: 'Roboto', system-ui, sans-serif;
-  background: #0A0908;
-  color: #F4F1EC;
+  background: #F5F6F8;
+  color: #16181B;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -76,8 +76,12 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
-  background: #0A0908;
+  background: #F5F6F8;
 }
+
+/* Theme-aware frame background (behind safe areas) */
+[data-theme="dark"] body, [data-theme="dark"] #root { background: #0A0908; }
+[data-theme="light"] body, [data-theme="light"] #root { background: #F5F6F8; }
 button { font-family: inherit; cursor: pointer; }
 button:focus { outline: none; }
 *::-webkit-scrollbar { display: none; }

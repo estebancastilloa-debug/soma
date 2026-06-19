@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 
 // ─── Token computation (mirrors soma-tokens.jsx) ───────────────────
 const BRAND = {
@@ -27,9 +28,9 @@ function buildPalette(intensityId) {
 
 const NEUTRALS = {
   light: {
-    bg:'#F2EFE6', surface:'#FFFFFF', s2:'#E8E4D9', surfaceInk:'#15120E',
-    fg:'#15120E', fgMuted:'#5F5B53', fgFaint:'#9A968F',
-    border:'#D9D4C7', divider:'#E3DFD3',
+    bg:'#F5F6F8', surface:'#FFFFFF', s2:'#EDEFF2', surfaceInk:'#16181B',
+    fg:'#16181B', fgMuted:'#5B6068', fgFaint:'#A2A8B0',
+    border:'#E6E9ED', divider:'#EEF0F3',
   },
   dark: {
     bg:'#0A0908', surface:'#15130F', s2:'#211D17', surfaceInk:'#F4F1EC',
@@ -77,8 +78,18 @@ export { computeTokens };
 const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
+  // One-time push to the new lighter, cleaner default (light + calm).
+  // Respects the user's choices afterwards.
+  try {
+    if (localStorage.getItem('soma_theme_v') !== '2') {
+      localStorage.setItem('soma_theme_mode', 'light');
+      localStorage.setItem('soma_theme_intensity', 'calm');
+      localStorage.setItem('soma_theme_v', '2');
+    }
+  } catch {}
+
   const [mode, setMode] = useState(() => {
-    try { return localStorage.getItem('soma_theme_mode') || 'dark'; } catch { return 'dark'; }
+    try { return localStorage.getItem('soma_theme_mode') || 'light'; } catch { return 'light'; }
   });
   const [intensityId, setIntensityId] = useState(() => {
     try { return localStorage.getItem('soma_theme_intensity') || 'calm'; } catch { return 'calm'; }
@@ -95,6 +106,13 @@ export function ThemeProvider({ children }) {
       localStorage.setItem('soma_theme_intensity', intensityId);
       localStorage.setItem('soma_theme_accent', accentId);
     } catch {}
+    // keep the native status bar in sync with the theme
+    if (Capacitor.isNativePlatform()) {
+      import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+        StatusBar.setStyle({ style: mode === 'dark' ? Style.Dark : Style.Light }).catch(() => {});
+        StatusBar.setBackgroundColor({ color: mode === 'dark' ? '#0A0908' : '#F5F6F8' }).catch(() => {});
+      }).catch(() => {});
+    }
   }, [mode, intensityId, accentId]);
 
   const t = computeTokens({ mode, intensityId, accentId });

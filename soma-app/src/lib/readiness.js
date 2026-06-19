@@ -99,9 +99,10 @@ export function loadTodaySignals() {
     if (Array.isArray(raw)) {
       raw.forEach(a => { painMap[a] = 2; });
     } else if (raw && typeof raw === 'object') {
+      const W = { exercise: 1, overload: 1.3, injury: 1.6 };
       Object.entries(raw).forEach(([a, v]) => {
         if (typeof v === 'number') painMap[a] = v;
-        else if (v && typeof v === 'object' && v.level) painMap[a] = v.type === 'injury' ? v.level * 1.6 : v.level;
+        else if (v && typeof v === 'object' && v.level) painMap[a] = v.level * (W[v.type] || 1);
       });
     }
   } catch {}

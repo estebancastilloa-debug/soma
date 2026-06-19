@@ -55,18 +55,10 @@ export function MenuButton({ t, onMenu, color }) {
 }
 
 // ─── FAB ──────────────────────────────────────────────────────────
-export function Fab({ t, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      position:'absolute', right:18, bottom:26, zIndex:30,
-      width:56, height:56, borderRadius:'50%',
-      background:t.accent, color:t.onAccent, border:'none', cursor:'pointer',
-      display:'flex', alignItems:'center', justifyContent:'center',
-      boxShadow:`0 10px 26px ${t.accent}44, 0 4px 10px rgba(0,0,0,0.4)`,
-    }}>
-      <IconPlus size={26} stroke={2.4} color={t.onAccent}/>
-    </button>
-  );
+// The floating add button is redundant with the center button in the bottom
+// nav (and overlapped it). Removed for a cleaner, lighter layout.
+export function Fab() {
+  return null;
 }
 
 // ─── Back button ──────────────────────────────────────────────────
@@ -345,13 +337,14 @@ export function BottomTabBar({ t, screen, onNav, onPlus }) {
         if (!tab) return (
           <div key="fab" style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center' }}>
             <button onClick={onPlus} style={{
-              width:58, height:58, borderRadius:'50%',
-              background:t.accent, border:'none', cursor:'pointer',
+              width:56, height:56, minWidth:56, minHeight:56, flexShrink:0,
+              borderRadius:'50%', aspectRatio:'1 / 1', boxSizing:'border-box',
+              background:t.accent, border:'none', cursor:'pointer', padding:0,
               color:t.onAccent, display:'flex', alignItems:'center',
-              justifyContent:'center', transform:'translateY(-10px)',
-              boxShadow:`0 6px 20px ${t.accent}66`,
+              justifyContent:'center', transform:'translateY(-12px)',
+              boxShadow:`0 6px 18px ${t.accent}55`,
             }}>
-              <IconPlus size={28} stroke={2.4}/>
+              <IconPlus size={26} stroke={2.4} color={t.onAccent}/>
             </button>
           </div>
         );
