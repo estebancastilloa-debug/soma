@@ -84,48 +84,53 @@ export function AuthScreen({ t }) {
           ))}
         </div>
 
-        {/* Inputs */}
-        <input
-          type="email" value={email} onChange={e => setEmail(e.target.value)}
-          placeholder="Email" style={inputStyle}
-          onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-        />
-        <input
-          type="password" value={password} onChange={e => setPassword(e.target.value)}
-          placeholder="Contraseña (mín. 6 caracteres)" style={{ ...inputStyle, marginBottom: 16 }}
-          onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-        />
+        {/* Inputs — wrapped in a form so password managers recognize it */}
+        <form onSubmit={e => { e.preventDefault(); handleSubmit(); }} autoComplete="on">
+          <input
+            type="email" name="email" id="email"
+            autoComplete="username"
+            inputMode="email" autoCapitalize="none" autoCorrect="off"
+            value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="Email" style={inputStyle}
+          />
+          <input
+            type="password" name="password" id="password"
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            value={password} onChange={e => setPassword(e.target.value)}
+            placeholder="Contraseña (mín. 6 caracteres)" style={{ ...inputStyle, marginBottom: 16 }}
+          />
 
-        {error && (
-          <div style={{
-            padding: '10px 14px', borderRadius: 10, marginBottom: 14,
-            background: `${t.semantic.low}22`, border: `1px solid ${t.semantic.low}44`,
-            fontFamily: t.fonts.body, fontSize: 13, color: t.semantic.low,
-          }}>{error}</div>
-        )}
+          {error && (
+            <div style={{
+              padding: '10px 14px', borderRadius: 10, marginBottom: 14,
+              background: `${t.semantic.low}22`, border: `1px solid ${t.semantic.low}44`,
+              fontFamily: t.fonts.body, fontSize: 13, color: t.semantic.low,
+            }}>{error}</div>
+          )}
 
-        {success && (
-          <div style={{
-            padding: '10px 14px', borderRadius: 10, marginBottom: 14,
-            background: `${t.semantic.ok}22`, border: `1px solid ${t.semantic.ok}44`,
-            fontFamily: t.fonts.body, fontSize: 13, color: t.semantic.ok,
-          }}>{success}</div>
-        )}
+          {success && (
+            <div style={{
+              padding: '10px 14px', borderRadius: 10, marginBottom: 14,
+              background: `${t.semantic.ok}22`, border: `1px solid ${t.semantic.ok}44`,
+              fontFamily: t.fonts.body, fontSize: 13, color: t.semantic.ok,
+            }}>{success}</div>
+          )}
 
-        <button
-          onClick={handleSubmit}
-          disabled={loading || !email || !password}
-          style={{
-            width: '100%', padding: '15px', borderRadius: 14, border: 'none',
-            cursor: loading ? 'default' : 'pointer',
-            background: (!email || !password) ? t.s2 : t.accent,
-            color: (!email || !password) ? t.fgFaint : t.onAccent,
-            fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16,
-            transition: 'background 0.15s',
-          }}
-        >
-          {loading ? 'Cargando...' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
-        </button>
+          <button
+            type="submit"
+            disabled={loading || !email || !password}
+            style={{
+              width: '100%', padding: '15px', borderRadius: 14, border: 'none',
+              cursor: loading ? 'default' : 'pointer',
+              background: (!email || !password) ? t.s2 : t.accent,
+              color: (!email || !password) ? t.fgFaint : t.onAccent,
+              fontFamily: t.fonts.body, fontWeight: 700, fontSize: 16,
+              transition: 'background 0.15s',
+            }}
+          >
+            {loading ? 'Cargando...' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
+          </button>
+        </form>
       </div>
     </ScreenFrame>
   );
