@@ -316,47 +316,33 @@ export function ScreenFrame({ t, children, accentColor }) {
 }
 
 // ─── Bottom tab bar ───────────────────────────────────────────────
-export function BottomTabBar({ t, screen, onNav, onPlus }) {
+export function BottomTabBar({ t, screen, onNav }) {
   const tabs = [
-    { id:'home',    Icon:IconHome,    label:'Home' },
+    { id:'home',    Icon:IconHome,    label:'Inicio' },
     { id:'train',   Icon:IconTrain,   label:'Entrena' },
-    null,
+    { id:'eat',     Icon:IconEat,     label:'Come' },
     { id:'journal', Icon:IconJournal, label:'Diario' },
     { id:'me',      Icon:IconProfile, label:'Yo' },
   ];
 
   return (
     <div style={{
-      display:'flex', alignItems:'center',
-      height:68, flexShrink:0,
+      display:'flex', alignItems:'stretch',
+      height:76, flexShrink:0,
       paddingBottom:'env(safe-area-inset-bottom)',
-      background:t.bg,
+      background:t.surface,
       borderTop:`1px solid ${t.divider}`,
     }}>
-      {tabs.map((tab, i) => {
-        if (!tab) return (
-          <div key="fab" style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center' }}>
-            <button onClick={onPlus} style={{
-              width:56, height:56, minWidth:56, minHeight:56, flexShrink:0,
-              borderRadius:'50%', aspectRatio:'1 / 1', boxSizing:'border-box',
-              background:t.accent, border:'none', cursor:'pointer', padding:0,
-              color:t.onAccent, display:'flex', alignItems:'center',
-              justifyContent:'center', transform:'translateY(-12px)',
-              boxShadow:`0 6px 18px ${t.accent}55`,
-            }}>
-              <IconPlus size={26} stroke={2.4} color={t.onAccent}/>
-            </button>
-          </div>
-        );
+      {tabs.map(tab => {
         const active = screen === tab.id;
         return (
           <button key={tab.id} onClick={() => onNav(tab.id)}
             style={{ flex:1, height:'100%', border:'none', background:'transparent',
               cursor:'pointer', display:'flex', flexDirection:'column',
-              alignItems:'center', justifyContent:'center', gap:5,
+              alignItems:'center', justifyContent:'center', gap:6, padding:'10px 0',
               color: active ? t.accent : t.fgMuted }}>
-            <tab.Icon size={27} stroke={active ? 2.3 : 1.8}/>
-            <span style={{ fontFamily:t.fonts.body, fontSize:11.5, fontWeight: active ? 700 : 500,
+            <tab.Icon size={26} stroke={active ? 2.4 : 1.9}/>
+            <span style={{ fontFamily:t.fonts.body, fontSize:11, fontWeight: active ? 700 : 500,
               letterSpacing:'0' }}>{tab.label}</span>
           </button>
         );

@@ -93,121 +93,99 @@ function wodTypeLabel(wt) {
   return WOD_TYPES.find(w => w.value === wt)?.label || wt || '';
 }
 
-// ─── Three-week stacked calendar ───────────────────────────────────────
+// ─── Navigable month calendar with colored dots ────────────────────────
 
-const WEEK_ROWS = [
-  { offset: -1, label: '↑ anterior' },
-  { offset:  0, label: 'esta semana' },
-  { offset:  1, label: '↓ próxima' },
-];
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-function ThreeWeekCalendar({ t, workoutDates, activityDates }) {
+function MonthCalendar({ t, workoutDates, activityDates }) {
+  const now = new Date();
+  const [view, setView] = useState({ y: now.getFullYear(), m: now.getMonth() });
   const today = todayIso();
 
+  // habit-completion dates (a "goal met" day)
+  const habitDates = (() => {
+    try {
+      const all = JSON.parse(localStorage.getItem('soma_habits_done') || '{}');
+      return new Set(Object.entries(all).filter(([, v]) => Array.isArray(v) && v.length > 0).map(([d]) => d));
+    } catch { return new Set(); }
+  })();
+
+  function shift(delta) {
+    setView(v => {
+      const d = new Date(v.y, v.m + delta, 1);
+      return { y: d.getFullYear(), m: d.getMonth() };
+    });
+  }
+
+  const first = new Date(view.y, view.m, 1);
+  const startDow = (first.getDay() + 6) % 7; // Monday = 0
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const isFuture = view.y > now.getFullYear() || (view.y === now.getFullYear() && view.m > now.getMonth());
+
   return (
-    <div style={{
-      background: t.surface,
-      border: `1px solid ${t.divider}`,
-      borderRadius: 18,
-      margin: '14px 20px 0',
-      padding: '14px 12px',
-    }}>
-      {WEEK_ROWS.map(({ offset, label }) => {
-        const days = getWeekDays(offset);
-        const isCurrent = offset === 0;
-        const isPastOrNext = !isCurrent;
+    <div style={{ background: t.surface, border: `1px solid ${t.divider}`, borderRadius: 18, margin: '14px 20px 0', padding: '14px 14px 16px' }}>
+      {/* Header with nav */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <button onClick={() => shift(-1)} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: t.s2, color: t.fg, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+        <div style={{ fontFamily: t.fonts.body, fontWeight: 700, fontSize: 15, color: t.fg }}>
+          {MONTH_NAMES[view.m]} {view.y}
+        </div>
+        <button onClick={() => shift(1)} disabled={isFuture} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: t.s2, color: isFuture ? t.fgFaint : t.fg, cursor: isFuture ? 'default' : 'pointer', fontSize: 18, opacity: isFuture ? 0.4 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+      </div>
 
-        return (
-          <div
-            key={offset}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              paddingTop: isCurrent ? 10 : 6,
-              paddingBottom: isCurrent ? 10 : 6,
-              borderLeft: isCurrent ? `3px solid ${t.accent}` : '3px solid transparent',
-              paddingLeft: isCurrent ? 8 : 8,
-              opacity: isPastOrNext ? 0.7 : 1,
-              marginBottom: offset === -1 ? 4 : offset === 0 ? 4 : 0,
-            }}
-          >
-            {/* Row label */}
-            <div style={{
-              width: 52,
-              flexShrink: 0,
-              fontFamily: t.fonts.mono,
-              fontSize: 8,
-              fontWeight: 700,
-              letterSpacing: '0.04em',
-              color: isCurrent ? t.accent : t.fgFaint,
-              lineHeight: 1.2,
-              textAlign: 'right',
-            }}>
-              {label}
+      {/* Weekday labels */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginBottom: 6 }}>
+        {DAY_LABELS.map((d, i) => (
+          <div key={i} style={{ textAlign: 'center', fontFamily: t.fonts.mono, fontSize: 8.5, fontWeight: 700, color: t.fgFaint, letterSpacing: '0.04em' }}>{d}</div>
+        ))}
+      </div>
+
+      {/* Day grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+        {cells.map((d, idx) => {
+          if (d == null) return <div key={`e${idx}`} />;
+          const iso = `${view.y}-${pad(view.m + 1)}-${pad(d)}`;
+          const isToday = iso === today;
+          const hasWorkout = workoutDates.has(iso);
+          const hasActivity = activityDates?.has(iso);
+          const hasHabits = habitDates.has(iso);
+          const dots = [];
+          if (hasWorkout) dots.push(t.pillar.train);
+          if (hasActivity && !hasWorkout) dots.push(t.secondary);
+          if (hasHabits) dots.push(t.pillar.records);
+          return (
+            <div key={iso} style={{ aspectRatio: '1 / 1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '2px 0' }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: isToday ? t.accent : 'transparent',
+              }}>
+                <span style={{ fontFamily: t.fonts.body, fontWeight: isToday ? 700 : 500, fontSize: 12.5, color: isToday ? t.onAccent : t.fg }}>{d}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 2, height: 5 }}>
+                {dots.slice(0, 3).map((c, i) => (
+                  <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: c }} />
+                ))}
+              </div>
             </div>
+          );
+        })}
+      </div>
 
-            {/* Day columns */}
-            <div style={{ display: 'flex', gap: 4, flex: 1 }}>
-              {days.map((d, i) => {
-                const iso = isoDate(d);
-                const isToday = iso === today;
-                const hasWorkout = workoutDates.has(iso);
-                const hasActivity = !hasWorkout && activityDates?.has(iso);
-
-                return (
-                  <div key={iso} style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}>
-                    <span style={{
-                      fontFamily: t.fonts.mono,
-                      fontSize: isCurrent ? 9 : 8,
-                      fontWeight: 700,
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
-                      color: isToday ? t.accent : t.fgMuted,
-                    }}>
-                      {DAY_LABELS[i]}
-                    </span>
-
-                    <div style={{
-                      width: isCurrent ? 26 : 22,
-                      height: isCurrent ? 26 : 22,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: isToday ? t.accent : 'transparent',
-                      border: isToday ? 'none' : `1.5px solid ${t.divider}`,
-                    }}>
-                      <span style={{
-                        fontFamily: t.fonts.body,
-                        fontWeight: isToday ? 700 : 500,
-                        fontSize: isCurrent ? 11 : 10,
-                        color: isToday ? '#0A0908' : t.fg,
-                      }}>
-                        {d.getDate()}
-                      </span>
-                    </div>
-
-                    <div style={{
-                      width: 5,
-                      height: 5,
-                      borderRadius: '50%',
-                      background: hasWorkout ? t.pillar.train : hasActivity ? t.secondary : 'transparent',
-                      border: (hasWorkout || hasActivity) ? 'none' : `1.5px solid ${t.fgFaint}`,
-                    }}/>
-                  </div>
-                );
-              })}
-            </div>
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 14, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {[['Entreno', t.pillar.train], ['Actividad', t.secondary], ['Hábitos', t.pillar.records]].map(([lab, c]) => (
+          <div key={lab} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', background: c }} />
+            <span style={{ fontFamily: t.fonts.body, fontSize: 11, color: t.fgMuted }}>{lab}</span>
           </div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }
@@ -841,8 +819,8 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
 
       <div style={{ height: 'calc(100% - 56px)', overflowY: 'auto', paddingBottom: 100 }}>
 
-        {/* ── Three-week calendar ── */}
-        <ThreeWeekCalendar
+        {/* ── Month calendar (navigable, colored dots) ── */}
+        <MonthCalendar
           t={t}
           workoutDates={new Set(workouts.map(w => w.date))}
           activityDates={new Set(activity.map(a => a.date))}
@@ -890,15 +868,16 @@ export function TrainScreen({ t, onNav, onMenu, onPlus }) {
           <button
             onClick={() => setShowForm(v => !v)}
             style={{
-              width: '100%', background: 'transparent',
-              border: `1.5px dashed ${showForm ? t.pillar.train : t.divider}`,
-              borderRadius: 14, padding: '11px 0',
-              fontFamily: t.fonts.body, fontWeight: 600, fontSize: 13.5,
-              color: showForm ? t.pillar.train : t.fgMuted,
+              width: '100%',
+              background: showForm ? 'transparent' : t.pillar.train,
+              border: showForm ? `1.5px solid ${t.divider}` : 'none',
+              borderRadius: 14, padding: '14px 0',
+              fontFamily: t.fonts.body, fontWeight: 700, fontSize: 15,
+              color: showForm ? t.fgMuted : '#0A0908',
               cursor: 'pointer', letterSpacing: '-0.01em',
             }}
           >
-            {showForm ? '✕ Cancelar' : 'Registrar entrenamiento +'}
+            {showForm ? 'Cancelar' : '＋ Registrar entreno'}
           </button>
         </div>
 

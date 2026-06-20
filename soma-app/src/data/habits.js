@@ -1,6 +1,8 @@
 export const HABITS = [
   // BODY
   { id:'mobility', cat:'body', lab:'Daily mobility',     sub:'10 min · long-hold stretches', icon:'balance',  why:'Joint centration and tissue capacity prevent injury and unlock harder training.', examples:['Couch stretch 2 min/side','Pigeon hold 90s/side','Wall ankle dorsiflexion','Thoracic foam roll','Lat hang 60s'] },
+  { id:'mob_general', cat:'body', lab:'Movilidad general', sub:'Rutina de cuerpo completo', icon:'balance', why:'Mantiene rango de movimiento y previene rigidez global.', examples:['Flujo articular 10 min','Sun salutation','Cat-cow + cadera + hombros'] },
+  { id:'mob_rehab',  cat:'body', lab:'Movilidad para lesión/sobrecarga', sub:'Zona específica afectada', icon:'balance', why:'Trabajo dirigido a la zona con dolor o sobrecarga acelera recuperación.', examples:['Movilidad de la zona marcada en dolor','Isométricos suaves','Liberación miofascial localizada'] },
   { id:'cold',     cat:'body', lab:'Cold plunge',        sub:'Morning · norepinephrine spike', icon:'water',  why:'Spikes dopamine and norepinephrine, builds stress tolerance.', examples:['Cold shower 3 min','Plunge 14°C · 2 min','Cold lake swim'] },
   { id:'sauna',    cat:'body', lab:'Sauna',              sub:'Heat shock proteins · recovery', icon:'flame',  why:'Heat shock proteins · cardiovascular adaptation · recovery.', examples:['20 min @ 80°C','Sauna-cold-sauna contrast','Steam room 15 min'] },
   { id:'grip',     cat:'body', lab:'Grip strength check',sub:'CNS readiness gauge',  icon:'dumbbell',  why:'A >5% drop from your best score = CNS fatigued. Tells you to back off.', examples:['Dynamometer 3 reps both hands','Plate pinch 30s timed','Dead hang max time'] },

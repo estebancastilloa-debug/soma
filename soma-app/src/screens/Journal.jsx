@@ -906,6 +906,29 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
   const [showHabitEdit, setShowHabitEdit] = useState(false);
   const [customHabits, setCustomHabits] = useState(() => loadCustomHabits());
   const allHabits = [...HABITS, ...customHabits];
+  // ids of habits that came from the Inner Map (shown in their own section)
+  const [innerMapHabitIds, setInnerMapHabitIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('soma_innermap_habits') || '[]'); } catch { return []; }
+  });
+  // custom diagnoses/topics the user creates from their results
+  const [customPsych, setCustomPsych] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('soma_custom_psych') || '[]'); } catch { return []; }
+  });
+  const [addingPsych, setAddingPsych] = useState(false);
+  const [newPsychLab, setNewPsychLab] = useState('');
+  function addCustomPsych() {
+    const lab = newPsychLab.trim();
+    if (!lab) return;
+    const next = [...customPsych, { id: 'cp_' + Date.now(), lab, sub: 'Diagnóstico personalizado' }];
+    setCustomPsych(next);
+    localStorage.setItem('soma_custom_psych', JSON.stringify(next));
+    setNewPsychLab(''); setAddingPsych(false);
+  }
+  function removeCustomPsych(id) {
+    const next = customPsych.filter(c => c.id !== id);
+    setCustomPsych(next);
+    localStorage.setItem('soma_custom_psych', JSON.stringify(next));
+  }
 
   // Add a (psych-recommended) habit to the daily tracker
   function addHabitToTracker(habit) {
@@ -915,11 +938,15 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
       setHabitTemplate(next);
       localStorage.setItem('soma_habit_template', JSON.stringify(next));
     }
+    if (!innerMapHabitIds.includes(habit.id)) {
+      const next = [...innerMapHabitIds, habit.id];
+      setInnerMapHabitIds(next);
+      localStorage.setItem('soma_innermap_habits', JSON.stringify(next));
+    }
   }
   function removeHabitFromTracker(id) {
-    const next = habitTemplate.filter(x => x !== id);
-    setHabitTemplate(next);
-    localStorage.setItem('soma_habit_template', JSON.stringify(next));
+    setHabitTemplate(prev => { const n = prev.filter(x => x !== id); localStorage.setItem('soma_habit_template', JSON.stringify(n)); return n; });
+    setInnerMapHabitIds(prev => { const n = prev.filter(x => x !== id); localStorage.setItem('soma_innermap_habits', JSON.stringify(n)); return n; });
   }
 
   useBackClose(!!painSheetArea, () => setPainSheetArea(null));
@@ -983,6 +1010,39 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
     setHabits(next);
     persistHabitsLocal(next);   // guaranteed local save
     saveLog({ newHabits: next }); // cloud sync (best-effort)
+  }
+
+  function renderHabitButton(h, overrideColor) {
+    const isOn = habits.includes(h.id);
+    const catColor = overrideColor || t.pillar[CAT_PILLAR[h.cat]] || t.accent;
+    return (
+      <button key={h.id} onClick={() => toggleHabit(h.id)} style={{
+        padding:'12px', borderRadius:12,
+        border: isOn ? `2px solid ${catColor}` : `1px solid ${t.border}`,
+        background: isOn ? `${catColor}18` : t.surface,
+        cursor:'pointer', textAlign:'left',
+        display:'flex', alignItems:'center', gap:10,
+      }}>
+        <div style={{
+          width:28, height:28, borderRadius:'50%', flexShrink:0,
+          background: isOn ? catColor : t.s2,
+          display:'flex', alignItems:'center', justifyContent:'center',
+        }}>
+          {isOn
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round"><polyline points="4,12 10,18 20,6"/></svg>
+            : <div style={{ width:8, height:8, borderRadius:'50%', border:`1.5px solid ${t.fgFaint}` }}/>
+          }
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontFamily:t.fonts.body, fontWeight:600, fontSize:12.5, color:t.fg, lineHeight:1.2 }}>
+            {HABIT_ES[h.id] || h.lab}
+          </div>
+          <div style={{ fontFamily:t.fonts.mono, fontSize:8, color:catColor, textTransform:'uppercase', letterSpacing:'0.1em', marginTop:2 }}>
+            {CAT_LABEL[h.cat] || ''}
+          </div>
+        </div>
+      </button>
+    );
   }
 
   function handleJournalChange(text) {
@@ -1214,6 +1274,8 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
 
   const todayPrompt   = PROMPTS[new Date().getDay() % PROMPTS.length];
   const activeHabits  = allHabits.filter(h => habitTemplate.includes(h.id));
+  const regularHabits = activeHabits.filter(h => !innerMapHabitIds.includes(h.id));
+  const innerHabits   = activeHabits.filter(h => innerMapHabitIds.includes(h.id));
   const doneCount     = habits.filter(id => activeHabits.find(h => h.id === id)).length;
 
   return (
@@ -1412,39 +1474,21 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
               ) : (
                 <>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                    {activeHabits.map(h => {
-                      const isOn = habits.includes(h.id);
-                      const catColor = t.pillar[CAT_PILLAR[h.cat]] || t.accent;
-                      return (
-                        <button key={h.id} onClick={() => toggleHabit(h.id)} style={{
-                          padding:'12px', borderRadius:12,
-                          border: isOn ? `2px solid ${catColor}` : `1px solid ${t.border}`,
-                          background: isOn ? `${catColor}18` : t.surface,
-                          cursor:'pointer', textAlign:'left',
-                          display:'flex', alignItems:'center', gap:10,
-                        }}>
-                          <div style={{
-                            width:28, height:28, borderRadius:'50%', flexShrink:0,
-                            background: isOn ? catColor : t.s2,
-                            display:'flex', alignItems:'center', justifyContent:'center',
-                          }}>
-                            {isOn
-                              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A0908" strokeWidth="2.6" strokeLinecap="round"><polyline points="4,12 10,18 20,6"/></svg>
-                              : <div style={{ width:8, height:8, borderRadius:'50%', border:`1.5px solid ${t.fgFaint}` }}/>
-                            }
-                          </div>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontFamily:t.fonts.body, fontWeight:600, fontSize:12.5, color:t.fg, lineHeight:1.2 }}>
-                              {HABIT_ES[h.id] || h.lab}
-                            </div>
-                            <div style={{ fontFamily:t.fonts.mono, fontSize:8, color:catColor, textTransform:'uppercase', letterSpacing:'0.1em', marginTop:2 }}>
-                              {CAT_LABEL[h.cat]}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    {regularHabits.map(h => renderHabitButton(h))}
                   </div>
+
+                  {/* Inner Map habits — driven by your psychological diagnosis */}
+                  {innerHabits.length > 0 && (
+                    <div style={{ marginTop:14 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+                        <span style={{ width:8, height:8, borderRadius:'50%', background:'#7C3AED' }}/>
+                        <MonoLabel t={t} color="#7C3AED">del inner map · {innerHabits.filter(h => habits.includes(h.id)).length}/{innerHabits.length}</MonoLabel>
+                      </div>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                        {innerHabits.map(h => renderHabitButton(h, '#7C3AED'))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Progress bar */}
                   <div style={{ marginTop:10, display:'flex', alignItems:'center', gap:8 }}>
@@ -1708,6 +1752,50 @@ export function JournalScreen({ t, onNav, onMenu, onPlus }) {
                 </div>
               );
             })}
+
+            {/* Custom diagnoses created by the user */}
+            {customPsych.map(item => {
+              const data = psychData[item.id] || { status:'unexplored', notes:'' };
+              const statusColor = data.status === 'explored' ? (t.semantic?.ok || '#34c759') : data.status === 'exploring' ? t.accent : t.fgFaint;
+              return (
+                <div key={item.id} style={{ margin:'8px 20px 0', background:t.surface, borderRadius:14, border:'1px solid '+t.divider, overflow:'hidden', display:'flex', alignItems:'center' }}>
+                  <button onClick={() => setPsychDetailItem(item)} style={{ flex:1, padding:'14px 16px', border:'none', background:'transparent', cursor:'pointer', display:'flex', alignItems:'center', gap:12, textAlign:'left' }}>
+                    <div style={{ width:10, height:10, borderRadius:'50%', background:'#7C3AED', flexShrink:0 }}/>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontFamily:t.fonts.body, fontWeight:600, fontSize:13.5, color:t.fg }}>{item.lab}</div>
+                      <div style={{ fontFamily:t.fonts.body, fontSize:11.5, color:t.fgMuted, marginTop:2 }}>Diagnóstico personalizado</div>
+                    </div>
+                    <div style={{ fontFamily:t.fonts.mono, fontSize:8.5, fontWeight:700, letterSpacing:'0.1em', color:statusColor, textTransform:'uppercase' }}>
+                      {STATUS_OPTS.find(s => s.key === data.status)?.label || 'Sin explorar'}
+                    </div>
+                  </button>
+                  <button onClick={() => removeCustomPsych(item.id)} style={{ width:40, height:40, border:'none', background:'transparent', color:t.fgFaint, cursor:'pointer', fontSize:16, flexShrink:0 }}>×</button>
+                </div>
+              );
+            })}
+
+            {/* Add custom diagnosis */}
+            {addingPsych ? (
+              <div style={{ margin:'10px 20px 0', display:'flex', gap:8 }}>
+                <input value={newPsychLab} autoFocus onChange={e => setNewPsychLab(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addCustomPsych()}
+                  placeholder="ej. Mi relación con el dinero"
+                  style={{ flex:1, padding:'11px 13px', borderRadius:12, border:`1px solid ${t.border}`, background:t.surface, color:t.fg, fontFamily:t.fonts.body, fontSize:13.5, outline:'none' }}/>
+                <button onClick={addCustomPsych} style={{ padding:'11px 16px', borderRadius:12, border:'none', background:'#7C3AED', color:'#fff', cursor:'pointer', fontFamily:t.fonts.body, fontWeight:700, fontSize:13.5, flexShrink:0 }}>Crear</button>
+                <button onClick={() => { setAddingPsych(false); setNewPsychLab(''); }} style={{ padding:'11px 12px', borderRadius:12, border:`1px solid ${t.divider}`, background:'transparent', color:t.fgMuted, cursor:'pointer', flexShrink:0 }}>✕</button>
+              </div>
+            ) : (
+              <button onClick={() => setAddingPsych(true)} style={{
+                margin:'10px 20px 0', width:'calc(100% - 40px)', padding:'13px', borderRadius:14,
+                border:`1.5px dashed ${t.divider}`, background:'transparent', color:'#7C3AED', cursor:'pointer',
+                fontFamily:t.fonts.body, fontWeight:700, fontSize:13.5,
+              }}>
+                + Agregar diagnóstico personalizado
+              </button>
+            )}
+            <div style={{ margin:'8px 20px 0', fontFamily:t.fonts.body, fontSize:11, color:t.fgFaint, lineHeight:1.5 }}>
+              Crea tus propios temas a partir de lo que descubras con NotebookLM. El Inner Map evoluciona contigo.
+            </div>
           </>
         )}
 
