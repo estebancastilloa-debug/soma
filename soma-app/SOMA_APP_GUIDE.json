@@ -1,0 +1,229 @@
+{
+  "meta": {
+    "name": "SOMA",
+    "tagline": "Cuerpo · Mente · Tiempo",
+    "description": "App holística de fitness que une entrenamiento, nutrición, biométricas del teléfono, hábitos diarios y un módulo psicológico (Inner Map). Todo se comunica entre sí: el diagnóstico psicológico recomienda hábitos y alimenta el prompt de programación de entrenos.",
+    "currentBuild": "b23",
+    "buildMarkerLocation": "Visible en la app: Yo → Health Connect → 'build bXX'. Sirve para verificar qué versión corre en el teléfono.",
+    "repo": "https://github.com/estebancastilloa-debug/soma",
+    "appPath": "soma-app/ (dentro del repo)",
+    "lastUpdated": "2026-06"
+  },
+
+  "techStack": {
+    "frontend": "React 19 + Vite (build con rolldown)",
+    "native": "Capacitor 8 (envuelve la web app como app Android nativa)",
+    "backend": "Supabase (auth por email/password + Postgres)",
+    "styling": "Estilos inline vía prop de tema `t` (no CSS frameworks). Tokens en src/theme.jsx",
+    "routing": "Basado en estado (no React Router). El estado `screen` en App.jsx decide qué pantalla mostrar",
+    "fonts": "Roboto (cuerpo/UI) + Roboto Mono (etiquetas) + Syne (solo el logo SOMA)",
+    "plugins": {
+      "@capacitor/app": "Botón/gesto 'atrás' de Android → cierra overlays (ver lib/backstack.js)",
+      "@capacitor/status-bar": "Barra de estado nativa, sincronizada con el tema",
+      "@devmaxime/capacitor-health-connect": "Lee datos de Health Connect (Android)",
+      "@aparajita/capacitor-biometric-auth": "Huella/Face para bloquear la sección de Psicología"
+    }
+  },
+
+  "deploy": {
+    "summary": "El código vive en GitHub. Se compila localmente y se instala en el teléfono vía Android Studio.",
+    "criticalNote": "El WebView de Android cachea el bundle. Para garantizar que el código nuevo llegue: usar `git reset --hard origin/main` (evita conflictos de pull), reconstruir, DESINSTALAR la app del teléfono (limpia el caché del WebView) y reinstalar.",
+    "steps": [
+      "cd C:\\Projects\\soma-nuevo\\soma-app",
+      "git fetch origin",
+      "git reset --hard origin/main",
+      "npm install",
+      "npm run build",
+      "npx cap sync android",
+      "Desinstalar SOMA del teléfono",
+      "Android Studio: Build → Clean Project",
+      "Presionar ▶️ (Run)",
+      "Verificar en Yo → Health Connect que diga el build esperado"
+    ],
+    "gotchas": [
+      "Los archivos generados por Capacitor (capacitor.build.gradle, capacitor.settings.gradle) están en .gitignore para que `git pull` no se cancele solo.",
+      "Trabajar fuera de OneDrive (OneDrive corrompe los builds de Android).",
+      "minSdkVersion = 26 (requisito de Health Connect).",
+      "Para hacer push se usa un GitHub token temporal en la URL del remote."
+    ]
+  },
+
+  "dataModel": {
+    "supabase": {
+      "profiles": "Datos del perfil. Se escribe vía RPC `save_profile` (SECURITY DEFINER, evita RLS). Campos: name, weight_kg, height_cm, goal, experience, days_per_week, time_of_day, rhr, onboarded. NOTA: 'age' solo existe en localStorage, el RPC no lo soporta.",
+      "workouts": "Entrenos registrados. Campos: user_id, date, name, wod_type, score_value, score_unit, rpe, notes.",
+      "prs": "Records personales (tabla; el tracking principal de PRs vive en localStorage soma_skill_prs).",
+      "daily_log": "Registro diario. Campos: user_id, date, mood, habit_ids[], journal_text, locus_text (JSON). Una fila por (usuario, fecha).",
+      "supplements_log": "Registro de suplementos."
+    },
+    "persistenceStrategy": "localStorage-first: todo se guarda primero en el teléfono (instantáneo, funciona offline) y se sincroniza a Supabase como best-effort. El perfil se cachea en soma_profile y se mezcla con la nube al cargar.",
+    "localStorage": {
+      "soma_profile": "Espejo local del perfil (incluye age, que la nube no guarda).",
+      "soma_theme_mode": "'light' | 'dark' (default light).",
+      "soma_theme_intensity": "'vivid' | 'calm' | 'mono' (default calm).",
+      "soma_theme_accent": "'lime' | 'blue' | 'coral'.",
+      "soma_theme_v": "Versión de tema para migración one-time al default claro.",
+      "soma_equipment": "Equipo marcado (checklist + custom).",
+      "soma_equipment_custom": "Equipo personalizado agregado por el usuario.",
+      "soma_movements": "Niveles de skills { nombreSkill: 0-3 }.",
+      "soma_skill_prs": "PRs por skill { skill: { '1':{value,date}, '2':..., reps:{...}, time:{...}, unit, metric } }.",
+      "soma_skill_metrics": "Métrica elegida por movimiento { skill: 'weight'|'reps'|'time' }.",
+      "soma_skill_custom": "Movimientos extra agregados por categoría { grupo: [nombres] }.",
+      "soma_goals": "Metas { annual, quarterly[], weekly[] }.",
+      "soma_focus_areas": "Áreas de enfoque [{id, label, cat, status}].",
+      "soma_injury_notes": "Notas de lesión (texto).",
+      "soma_habit_template": "IDs de hábitos que el usuario trackea.",
+      "soma_habits_done": "Completados por día { 'YYYY-MM-DD': [habitIds] } (historial diario).",
+      "soma_custom_habits": "Hábitos personalizados [{id, cat, lab, sub}].",
+      "soma_innermap_habits": "IDs de hábitos que vienen del Inner Map (se muestran en su propia sección).",
+      "soma_phys_mood": "Cansancio por día { 'YYYY-MM-DD': 'great|good|ok|tired|drained' }.",
+      "soma_body_areas": "Dolor por día { 'YYYY-MM-DD': { zona: { level:1-3, type:'exercise|overload|injury' } } }.",
+      "soma_psychology": "Datos por tema psicológico { topicId: { status, notes, nlmResponse, quizAnswers, quizResult } }.",
+      "soma_psych_exercises": "Ejercicios completados por tema { topicId: [exIds] }.",
+      "soma_psych_challenges": "Plan personalizado por tema { topicId: [{id, text, done, cat}] }.",
+      "soma_custom_psych": "Diagnósticos/temas personalizados [{id, lab, sub}].",
+      "soma_psych_bio": "'1' si la huella protege la sección de Psicología.",
+      "soma_pantry": "Despensa [{id, name, stock:1-4}].",
+      "soma_program_next": "Programación de la próxima semana (pegada de NotebookLM).",
+      "soma_open_logform": "(sessionStorage) flag para auto-abrir el formulario de entreno.",
+      "soma_supplements_list": "Lista de suplementos."
+    }
+  },
+
+  "navigation": {
+    "bottomTabs": ["Inicio (home)", "Entrena (train)", "Come (eat)", "Diario (journal)", "Yo (me)"],
+    "note": "Se quitó el botón redondo central '+'. Los entrenos se registran desde la pantalla Entrena con el botón '＋ Registrar entreno'.",
+    "drawerMenu": "Menú lateral con pantallas adicionales: Records, Level, PR Tracker, Health, Analytics, Travel, Supplements, Import, WOD Logger.",
+    "back": "El gesto/botón 'atrás' de Android cierra el overlay superior (backstack), luego va a Inicio, luego sale. Las hojas inferiores se cierran deslizando hacia abajo o tocando fuera (sin la × pequeña)."
+  },
+
+  "screens": {
+    "Auth": "Login/registro por email. Inputs en <form> con autocomplete para que funcione el password manager. Lee valores con refs (compatible con autofill/pegar).",
+    "Dashboard (Inicio)": {
+      "componentes": [
+        "Saludo + fecha",
+        "Tarjeta grande de READINESS (clickeable → modal con desglose, factores, recomendación y enlace para ajustar en Bitácora). Solo aparece si hay señal física real (sueño/cansancio/FC).",
+        "Widgets 2x2: Entreno hoy, Nutrición, Nivel, Hábitos (ícono ✓, no luna)",
+        "Chips de stats reales: Entrenos, PRs",
+        "Barra de racha semanal"
+      ]
+    },
+    "Train (Entrena)": {
+      "componentes": [
+        "Calendario MENSUAL navegable (flechas ‹ ›) con puntos de colores: verde-lima=entreno, naranja=actividad del teléfono, azul=hábitos completados ese día",
+        "Sección 'Actividad del teléfono' (sesiones de Health Connect)",
+        "Tarjeta de hoy",
+        "Botón '＋ Registrar entreno' → formulario (LogForm)",
+        "Generador de prompt de programación para NotebookLM + pegar la respuesta"
+      ],
+      "wodTypes": ["Fuerza", "AMRAP", "AMReps", "EMOM", "For Time (+ presets 21-15-9 / 50-40-30-20-10 / 10→1)", "Not for Time", "Death By", "Tabata", "Otro"],
+      "scoreUnits": ["min:seg (time)", "reps", "kg (load)", "rondas (rounds)"]
+    },
+    "Eat (Come)": "Calorías/macros (placeholder, sin logging real aún), barra de agua, y DESPENSA funcional (agregar/borrar/stock de items).",
+    "Journal (Bitácora)": {
+      "tabs": ["Día", "Psicología", "Locus"],
+      "Día": [
+        "Estado MENTAL (5 emojis de mood) → guarda en daily_log",
+        "READINESS (resumen)",
+        "CANSANCIO/energía (5 niveles)",
+        "DOLOR POR ZONA: tocar zona abre hoja con intensidad (Leve/Moderado/Fuerte) + tipo (Ejercicio/Sobrecarga/Lesión). Vigilancia de lesiones (historial).",
+        "Botón 'Copiar resumen del día' → markdown para Obsidian daily note",
+        "Señales corporales (datos reales de Health Connect)",
+        "HÁBITOS del día (grid). Sección aparte morada 'del inner map' para los hábitos agregados desde el diagnóstico. Botón EDITAR para elegir cuáles trackear. Se resetean cada día (la fecha es reactiva) y guardan historial.",
+        "Prompt del día (reflexión)"
+      ],
+      "Psicología": "Bloqueable con huella (siempre hay 'Entrar sin huella'). Tarjeta 'Mi perfil' que agrega somatotipo, apego, temas explorados y hábitos añadidos. Lista de temas (Inner Map) + diagnósticos personalizados que el usuario crea.",
+      "Locus": "Ejercicio estoico de locus de control."
+    },
+    "Profile (Yo)": {
+      "estructura": "Secciones COLAPSABLES (Mis datos abierto por defecto).",
+      "secciones": [
+        "Header: avatar, nombre, nivel + stats reales (Entrenos / Esta semana / PRs)",
+        "Mis datos: nombre, edad, peso (kg/lbs), altura (cm/in), objetivo, días/semana, horario. Vista de lectura + Editar.",
+        "Skills & PRs: categorías fijas (Halterofilia/Fuerza/Gymnastics/Cardio) con movimientos. Tocar nombre = nivel. Botón 'Editar' = editar DATOS del récord (métrica Peso/Reps/Tiempo + valores kg/lbs). '+ Agregar' añade movimientos extra (esos sí se borran).",
+        "Equipo: checklist por grupos + info (ℹ) con descripción y movimientos posibles + agregar custom",
+        "Áreas de enfoque: elegir movimientos/zonas del cuerpo (estilo BTWB)",
+        "Metas: anual → trimestral → semanal",
+        "Estado físico / lesiones: notas",
+        "Health Connect: conectar y ver estado",
+        "Apariencia: modo (claro/oscuro), color de acento (verde/azul/naranja), intensidad (vivid/calm/mono)"
+      ]
+    }
+  },
+
+  "systems": {
+    "readiness": {
+      "archivo": "src/lib/readiness.js",
+      "logica": "Promedio PONDERADO de sub-scores (0-100): Sueño 30% / Cansancio 25% / Dolor 20% / Ánimo 15% / FC reposo 10%. Solo muestra número si hay una señal física real (sueño/cansancio/FC); el mood por defecto no genera número.",
+      "etiquetas": "≥80 Listo (verde) · ≥60 Moderado (azul) · ≥40 Precaución (naranja) · <40 Descansa (rojo)",
+      "dolorPonderado": "Lesión 1.6× · Sobrecarga 1.3× · Ejercicio 1×"
+    },
+    "healthConnect": {
+      "archivo": "src/lib/healthConnect.js",
+      "lee": "FC en reposo, sueño, pasos, calorías activas, peso, FC promedio, y sesiones de ejercicio (ActivitySession → marca días en el calendario)",
+      "permisos": "Android 14+ requiere los intents de rationale (VIEW_PERMISSION_USAGE + HEALTH_PERMISSIONS) en el manifest. Hay diagnóstico en la tarjeta de Yo → Health Connect."
+    },
+    "biometric": {
+      "archivo": "src/lib/biometric.js",
+      "uso": "Bloquea la pestaña Psicología. Nativo (no WebAuthn). Siempre hay bypass 'Entrar sin huella'."
+    },
+    "backstack": {
+      "archivo": "src/lib/backstack.js",
+      "uso": "Registro LIFO de handlers de cierre. El botón/gesto atrás de Android cierra el overlay superior. Hook useBackClose(open, onClose)."
+    },
+    "customHabits": {
+      "archivo": "src/lib/customHabits.js",
+      "uso": "Hábitos personalizados que se mezclan con los predefinidos (data/habits.js). Permiten que el diagnóstico agregue hábitos al tracker."
+    },
+    "obsidianExport": "Botón en Día que compila todo el día (entreno, mood, dolor, hábitos, biométricas, readiness, reflexión, locus, notas) en markdown para pegar en Obsidian."
+  },
+
+  "interconnections": {
+    "descripcion": "El concepto central: todo se comunica.",
+    "flujos": [
+      "Diagnóstico psicológico (quiz de biotipo/apego, etc.) → recomienda HÁBITOS específicos → se agregan al tracker diario (sección 'del inner map') → se completan cada día.",
+      "Perfil psicológico (somatotipo + insights) → se incluye en el PROMPT de programación de entrenos que se copia a NotebookLM → los entrenos se ajustan a quién eres.",
+      "Dolor por zona + tipo → pondera el READINESS → el readiness guía qué hacer hoy (intensidad del entreno).",
+      "Workouts (Supabase) + actividad del teléfono (Health Connect) + hábitos completados → se visualizan como puntos de colores en el calendario mensual.",
+      "Quizzes (somatotipo, apego) → resultado guardado → resumen en 'Mi perfil' + alimenta recomendaciones y el prompt."
+    ]
+  },
+
+  "innerMap": {
+    "temasPredefinidos": ["ADHD", "Biotipos (quiz somatotipo)", "Heridas de infancia", "Energía M/F", "Locus de control", "Apego (quiz estilo de apego)"],
+    "porTema": [
+      "Guía",
+      "Quiz interactivo (biotipos y apego) con resultado",
+      "Hábitos recomendados para ti (agregar al tracker)",
+      "Prompt NotebookLM (copiar) y respuesta renderizada como análisis (markdown)",
+      "Plan personalizado: prompt COMPUESTO (diagnóstico + preguntas + test + retos + soluciones) → se pega la respuesta → se parsea en checklist agrupado por sección y se trackea",
+      "Ejercicios prácticos (checklist)",
+      "Mis notas"
+    ],
+    "personalizados": "Botón '+ Agregar diagnóstico personalizado' crea temas nuevos a partir de los resultados; obtienen el plan compuesto + análisis + tracking."
+  },
+
+  "knownIssuesAndPending": {
+    "recurrente": "Confirmar SIEMPRE el build number en Yo → Health Connect tras instalar; el WebView cachea y a veces corre código viejo. La reinstalación limpia resuelve.",
+    "pendientes": [
+      "Nutrición (Come): logging real de comidas/macros (hoy es placeholder).",
+      "Readiness más preciso con baseline de FC en reposo (requiere guardar histórico de RHR).",
+      "Psicología: secciones aún más interactivas y que el progreso de hábitos retroalimente cada tema.",
+      "Que el somatotipo ajuste también metas de nutrición.",
+      "Nivel/SOMA Level: sistema de niveles aún es estático (L01).",
+      "PRs: alertas cuando se rompe o se acerca un PR (parcial)."
+    ]
+  },
+
+  "fileMap": {
+    "src/App.jsx": "Router por estado, manejo del botón atrás, overlays globales (drawer, modales).",
+    "src/theme.jsx": "Tokens de tema, modos, intensidades, acentos, migración a claro, sync de status bar.",
+    "src/chrome.jsx": "UI compartida: StatusBar, DrawerMenu, AddSheet, BottomTabBar, ScreenFrame, PillarHeader, DragHandle, useSwipeDown.",
+    "src/marks.jsx": "Logo SOMA (F5) y marcas de nivel.",
+    "src/icons.jsx": "Íconos SVG.",
+    "src/data/habits.js": "HABITS predefinidos, categorías, PROMPTS de reflexión.",
+    "src/context/AuthContext.jsx": "Sesión + perfil (localStorage-first), saveProfile, signOut.",
+    "src/screens/*": "Pantallas (ver sección screens).",
+    "src/lib/*": "supabase, healthConnect, readiness, biometric, backstack, customHabits."
+  }
+}
