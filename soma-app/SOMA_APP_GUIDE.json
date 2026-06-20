@@ -7,9 +7,40 @@
     "buildMarkerLocation": "Visible en la app: Yo → Health Connect → 'build bXX'. Sirve para verificar qué versión corre en el teléfono.",
     "repo": "https://github.com/estebancastilloa-debug/soma",
     "appPath": "soma-app/ (dentro del repo)",
-    "lastUpdated": "2026-06"
+    "lastUpdated": "2026-06-20",
+    "detectedDataKeys": [
+      "soma_body_areas",
+      "soma_custom_habits",
+      "soma_custom_psych",
+      "soma_equipment",
+      "soma_equipment_custom",
+      "soma_focus_areas",
+      "soma_goals",
+      "soma_habit_template",
+      "soma_habits_done",
+      "soma_injury_notes",
+      "soma_innermap_habits",
+      "soma_movements",
+      "soma_open_logform",
+      "soma_pantry",
+      "soma_phys_mood",
+      "soma_profile",
+      "soma_program_next",
+      "soma_psych_bio",
+      "soma_psych_challenges",
+      "soma_psych_exercises",
+      "soma_psychology",
+      "soma_skill_custom",
+      "soma_skill_metrics",
+      "soma_skill_prs",
+      "soma_supplements_list",
+      "soma_theme_accent",
+      "soma_theme_intensity",
+      "soma_theme_mode",
+      "soma_theme_v"
+    ],
+    "undocumentedDataKeys": []
   },
-
   "techStack": {
     "frontend": "React 19 + Vite (build con rolldown)",
     "native": "Capacitor 8 (envuelve la web app como app Android nativa)",
@@ -24,7 +55,6 @@
       "@aparajita/capacitor-biometric-auth": "Huella/Face para bloquear la sección de Psicología"
     }
   },
-
   "deploy": {
     "summary": "El código vive en GitHub. Se compila localmente y se instala en el teléfono vía Android Studio.",
     "criticalNote": "El WebView de Android cachea el bundle. Para garantizar que el código nuevo llegue: usar `git reset --hard origin/main` (evita conflictos de pull), reconstruir, DESINSTALAR la app del teléfono (limpia el caché del WebView) y reinstalar.",
@@ -47,7 +77,6 @@
       "Para hacer push se usa un GitHub token temporal en la URL del remote."
     ]
   },
-
   "dataModel": {
     "supabase": {
       "profiles": "Datos del perfil. Se escribe vía RPC `save_profile` (SECURITY DEFINER, evita RLS). Campos: name, weight_kg, height_cm, goal, experience, days_per_week, time_of_day, rhr, onboarded. NOTA: 'age' solo existe en localStorage, el RPC no lo soporta.",
@@ -89,14 +118,18 @@
       "soma_supplements_list": "Lista de suplementos."
     }
   },
-
   "navigation": {
-    "bottomTabs": ["Inicio (home)", "Entrena (train)", "Come (eat)", "Diario (journal)", "Yo (me)"],
+    "bottomTabs": [
+      "Inicio (home)",
+      "Entrena (train)",
+      "Come (eat)",
+      "Diario (journal)",
+      "Yo (me)"
+    ],
     "note": "Se quitó el botón redondo central '+'. Los entrenos se registran desde la pantalla Entrena con el botón '＋ Registrar entreno'.",
     "drawerMenu": "Menú lateral con pantallas adicionales: Records, Level, PR Tracker, Health, Analytics, Travel, Supplements, Import, WOD Logger.",
     "back": "El gesto/botón 'atrás' de Android cierra el overlay superior (backstack), luego va a Inicio, luego sale. Las hojas inferiores se cierran deslizando hacia abajo o tocando fuera (sin la × pequeña)."
   },
-
   "screens": {
     "Auth": "Login/registro por email. Inputs en <form> con autocomplete para que funcione el password manager. Lee valores con refs (compatible con autofill/pegar).",
     "Dashboard (Inicio)": {
@@ -116,12 +149,31 @@
         "Botón '＋ Registrar entreno' → formulario (LogForm)",
         "Generador de prompt de programación para NotebookLM + pegar la respuesta"
       ],
-      "wodTypes": ["Fuerza", "AMRAP", "AMReps", "EMOM", "For Time (+ presets 21-15-9 / 50-40-30-20-10 / 10→1)", "Not for Time", "Death By", "Tabata", "Otro"],
-      "scoreUnits": ["min:seg (time)", "reps", "kg (load)", "rondas (rounds)"]
+      "wodTypes": [
+        "Fuerza",
+        "AMRAP",
+        "AMReps",
+        "EMOM",
+        "For Time (+ presets 21-15-9 / 50-40-30-20-10 / 10→1)",
+        "Not for Time",
+        "Death By",
+        "Tabata",
+        "Otro"
+      ],
+      "scoreUnits": [
+        "min:seg (time)",
+        "reps",
+        "kg (load)",
+        "rondas (rounds)"
+      ]
     },
     "Eat (Come)": "Calorías/macros (placeholder, sin logging real aún), barra de agua, y DESPENSA funcional (agregar/borrar/stock de items).",
     "Journal (Bitácora)": {
-      "tabs": ["Día", "Psicología", "Locus"],
+      "tabs": [
+        "Día",
+        "Psicología",
+        "Locus"
+      ],
       "Día": [
         "Estado MENTAL (5 emojis de mood) → guarda en daily_log",
         "READINESS (resumen)",
@@ -150,7 +202,6 @@
       ]
     }
   },
-
   "systems": {
     "readiness": {
       "archivo": "src/lib/readiness.js",
@@ -177,7 +228,6 @@
     },
     "obsidianExport": "Botón en Día que compila todo el día (entreno, mood, dolor, hábitos, biométricas, readiness, reflexión, locus, notas) en markdown para pegar en Obsidian."
   },
-
   "interconnections": {
     "descripcion": "El concepto central: todo se comunica.",
     "flujos": [
@@ -188,9 +238,15 @@
       "Quizzes (somatotipo, apego) → resultado guardado → resumen en 'Mi perfil' + alimenta recomendaciones y el prompt."
     ]
   },
-
   "innerMap": {
-    "temasPredefinidos": ["ADHD", "Biotipos (quiz somatotipo)", "Heridas de infancia", "Energía M/F", "Locus de control", "Apego (quiz estilo de apego)"],
+    "temasPredefinidos": [
+      "ADHD",
+      "Biotipos (quiz somatotipo)",
+      "Heridas de infancia",
+      "Energía M/F",
+      "Locus de control",
+      "Apego (quiz estilo de apego)"
+    ],
     "porTema": [
       "Guía",
       "Quiz interactivo (biotipos y apego) con resultado",
@@ -202,7 +258,6 @@
     ],
     "personalizados": "Botón '+ Agregar diagnóstico personalizado' crea temas nuevos a partir de los resultados; obtienen el plan compuesto + análisis + tracking."
   },
-
   "knownIssuesAndPending": {
     "recurrente": "Confirmar SIEMPRE el build number en Yo → Health Connect tras instalar; el WebView cachea y a veces corre código viejo. La reinstalación limpia resuelve.",
     "pendientes": [
@@ -214,7 +269,6 @@
       "PRs: alertas cuando se rompe o se acerca un PR (parcial)."
     ]
   },
-
   "fileMap": {
     "src/App.jsx": "Router por estado, manejo del botón atrás, overlays globales (drawer, modales).",
     "src/theme.jsx": "Tokens de tema, modos, intensidades, acentos, migración a claro, sync de status bar.",
